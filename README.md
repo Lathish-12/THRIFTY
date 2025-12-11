@@ -1,0 +1,2 @@
+# THRIFTY
+Personal Expence tracker
