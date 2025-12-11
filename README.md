@@ -1,4 +1,4 @@
-# Thrifty - AI Personal Expense Tracker
+# Thrifty - Personal Expense Tracker
 
 Thrifty is a modern, privacy-focused expense tracker with AI-powered insights.
 
