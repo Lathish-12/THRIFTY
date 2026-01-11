@@ -12,6 +12,11 @@
   --font-main: 'Outfit', sans-serif;
 }
 
+html {
+  font-size: 85%;
+  /* Scales down the entire UI */
+}
+
 body {
   margin: 0;
   font-family: var(--font-main);
@@ -26,15 +31,22 @@ body {
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary); 
+  background: var(--bg-primary);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-secondary); 
+  background: var(--bg-secondary);
   border-radius: 4px;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -154,4 +166,41 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(to right, #ffffff, #94a3b8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  html {
+    font-size: 80%;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+
+  .grid-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .glass-panel {
+    padding: 1rem !important;
+    /* Force smaller padding on mobile cards */
+  }
+
+  /* Utilities to hide/show on mobile */
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: block !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
 }

@@ -26,11 +26,11 @@ const CustomerSupport = () => {
                 onClick={toggle}
                 style={{
                     position: 'fixed',
-                    bottom: '2rem',
-                    right: '2rem',
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '30px',
+                    bottom: '85px',
+                    right: '1.5rem',
+                    width: '50px',
+                    height: '50px',
+                    borderRadius: '50%',
                     background: 'var(--accent-blue)',
                     border: 'none',
                     boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
@@ -42,7 +42,7 @@ const CustomerSupport = () => {
                     justifyContent: 'center'
                 }}
             >
-                {isOpen ? <X size={24} /> : <HelpCircle size={28} />}
+                {isOpen ? <X size={20} /> : <HelpCircle size={24} />}
             </button>
 
             <AnimatePresence>
@@ -53,10 +53,10 @@ const CustomerSupport = () => {
                         exit={{ opacity: 0, y: 20, scale: 0.9 }}
                         style={{
                             position: 'fixed',
-                            bottom: '7rem',
-                            right: '2rem',
-                            width: '350px',
-                            height: '500px',
+                            bottom: '145px',
+                            right: '1.5rem',
+                            width: '300px',
+                            height: '400px',
                             background: 'var(--bg-secondary)',
                             border: '1px solid var(--glass-border)',
                             borderRadius: '16px',

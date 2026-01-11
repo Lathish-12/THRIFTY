@@ -1,76 +1,91 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink } from 'react-router-dom';
-import { Home, PieChart, CreditCard, LayoutDashboard, Gift, MessageCircle } from 'lucide-react';
+import { Home, PieChart, CreditCard, LayoutDashboard, Gift, MessageCircle, Wallet, Target, TrendingUp } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const Navbar = () => {
-    const { user, logout } = useApp();
-
     return (
         <nav style={{
             position: 'fixed',
-            left: 0,
-            top: 0,
             bottom: 0,
-            width: '80px',
+            left: 0,
+            right: 0,
+            height: '60px', // slightly taller for touch targets
             background: 'rgba(15, 23, 42, 0.95)',
-            borderRight: '1px solid var(--glass-border)',
+            borderTop: '1px solid var(--glass-border)',
+            borderBottom: 'none',
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
-            padding: '2rem 0',
+            justifyContent: 'center', // Centered on desktop
+            padding: '0 1rem', // Smaller padding on mobile
             zIndex: 1000,
             backdropFilter: 'blur(10px)'
-        }}>
-            <div style={{ marginBottom: '3rem', fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--accent-blue)' }}>
-                T
+        }} className="navbar-responsive">
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.8rem',
+                width: '100%',
+                justifyContent: 'space-evenly', // Even spacing for mobile
+                maxWidth: '800px' // Constraint width on desktop
+            }}>
+                <NavItem to="/" icon={<LayoutDashboard size={22} />} text="Dashboard" />
+                <NavItem to="/transactions" icon={<CreditCard size={22} />} text="Transactions" />
+                <NavItem to="/budgets" icon={<Wallet size={22} />} text="Budget" />
+                <NavItem to="/goals" icon={<Target size={22} />} text="Goals" />
+                <NavItem to="/analytics" icon={<TrendingUp size={22} />} text="Analytics" />
+                <NavItem to="/rewards" icon={<Gift size={22} />} text="Rewards" />
+                <NavItem to="/advisor" icon={<MessageCircle size={22} />} text="Advisor" />
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1 }}>
-                <NavItem to="/" icon={<LayoutDashboard size={24} />} text="Dashboard" />
-                <NavItem to="/transactions" icon={<CreditCard size={24} />} text="Transactions" />
-                <NavItem to="/rewards" icon={<Gift size={24} />} text="Rewards" />
-                <NavItem to="/advisor" icon={<MessageCircle size={24} />} text="Advisor" />
-            </div>
-
-            <button
-                onClick={logout}
-                style={{
-                    marginTop: 'auto',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    padding: '1rem',
-                    borderRadius: '12px'
-                }}
-                title="Logout"
-            >
-                <div style={{ width: '24px', height: '24px', border: '2px solid currentColor', borderRadius: '50%', borderTopColor: 'transparent' }} />
-            </button>
         </nav>
     );
 };
 
-const NavItem = ({ to, icon, text }) => (
-    <NavLink
-        to={to}
-        className={({ isActive }) => (isActive ? "nav-active" : "")}
-        style={({ isActive }) => ({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '50px',
-            height: '50px',
-            borderRadius: '12px',
-            color: isActive ? 'white' : 'var(--text-secondary)',
-            background: isActive ? 'var(--accent-blue)' : 'transparent',
-            transition: 'all 0.3s ease'
-        })}
-        title={text}
-    >
-        {icon}
-    </NavLink>
-);
+const NavItem = ({ to, icon, text }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
+    return (
+        <NavLink
+            to={to}
+            className={({ isActive }) => (isActive ? "nav-active" : "")}
+            style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '44px',
+                minWidth: '44px', // ensure touch target size
+                padding: isHovered || isActive ? '0 1rem' : '0',
+                borderRadius: '22px',
+                color: isActive ? 'white' : 'var(--text-secondary)',
+                background: isActive ? 'var(--accent-blue)' : (isHovered ? 'rgba(255,255,255,0.05)' : 'transparent'),
+                transition: 'all 0.3s ease',
+                gap: '0.5rem',
+                overflow: 'hidden',
+                textDecoration: 'none',
+                flexShrink: 0
+            })}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            {({ isActive }) => (
+                <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {icon}
+                    </div>
+                    {/* Text hidden on mobile via CSS class or check */}
+                    <span className="desktop-only" style={{
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.85rem',
+                        fontWeight: '500',
+                        display: (isHovered || isActive) ? 'block' : 'none'
+                    }}>
+                        {text}
+                    </span>
+                </>
+            )}
+        </NavLink>
+    );
+};
 
 export default Navbar;

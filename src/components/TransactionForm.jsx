@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import { generateId } from '../utils';
 import { useApp } from '../context/AppContext';
 import ReceiptUpload from './ReceiptUpload';
 
@@ -15,24 +14,37 @@ const TransactionForm = () => {
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [file, setFile] = useState(null);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!description || !amount) return;
 
-        const newTransaction = {
-            id: generateId(),
-            description,
-            amount: parseFloat(amount),
-            type,
-            category: type === 'expense' ? category : 'Income',
-            date: new Date().toISOString(),
-            receipt: file ? file.preview : null
+        // Map frontend categories to backend categories
+        const categoryMap = {
+            'Food': 'food',
+            'Transport': 'transport',
+            'Utilities': 'bills',
+            'Entertainment': 'entertainment',
+            'Health': 'health',
+            'Shopping': 'shopping',
+            'Other': 'other'
         };
 
-        addTransaction(newTransaction);
-        setDescription('');
-        setAmount('');
-        setFile(null);
+        const newTransaction = {
+            description,
+            amount: parseFloat(amount),
+            type: type, // 'income' or 'expense'
+            category: type === 'expense' ? categoryMap[category] || 'other' : 'salary',
+            date: new Date().toISOString().split('T')[0], // Format: YYYY-MM-DD
+        };
+
+        try {
+            await addTransaction(newTransaction);
+            setDescription('');
+            setAmount('');
+            setFile(null);
+        } catch (error) {
+            console.error('Failed to add transaction:', error);
+        }
     };
 
     return (
