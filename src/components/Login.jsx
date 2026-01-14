@@ -4,35 +4,45 @@ import { Fingerprint, ShieldCheck, Lock, Globe } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
+import jwtDecode from "jwt-decode";
 
 const Login = () => {
-    const { login } = useApp();
+    const { login, googleLogin } = useApp();
     const [step, setStep] = useState(0); // 0: Google, 1: Bio, 2: MFA
     const [mfaCode, setMfaCode] = useState(['', '', '', '']);
     const [errorMsg, setErrorMsg] = useState('');
 
     // Handle Google Login Success
-    const handleGoogleSuccess = (credentialResponse) => {
+    const handleGoogleSuccess = async (credentialResponse) => {
         try {
-            if (!credentialResponse.credential) {
-                throw new Error("No credential received");
+            if (!credentialResponse || !credentialResponse.credential) {
+                throw new Error("No credential received from Google");
             }
-            const decoded = jwtDecode(credentialResponse.credential);
-            console.log("User:", decoded);
 
-            toast.success(`Welcome, ${decoded.name}!`, { theme: "dark" });
-            setStep(1);
+            console.log("Received credential from Google, length:", credentialResponse.credential.length);
+            const decoded = jwtDecode(credentialResponse.credential);
+            console.log("Decoded token user info:", { name: decoded.name, email: decoded.email });
+
+            // Try to log in via backend using the Google credential
+            const ok = await googleLogin(credentialResponse.credential);
+            if (ok) {
+                console.log("Backend login successful");
+                toast.success(`Welcome, ${decoded.name || 'User'}!`, { theme: "dark" });
+                setStep(0);
+            } else {
+                setErrorMsg('Backend rejected the Google token. Check server logs.');
+                toast.error('Login Process Failed', { theme: 'dark' });
+            }
         } catch (error) {
-            console.error("Login Success Error:", error);
-            setErrorMsg(`Decode Error: ${error.message}`);
+            console.error("Login Success Error:", error.message);
+            setErrorMsg(`Error: ${error.message}`);
             toast.error('Login Process Failed', { theme: "dark" });
         }
     };
 
-    const handleGoogleError = () => {
-        console.error("Google Sign In Failed");
-        setErrorMsg("Google Popup Failed. Check Console. Likely 'Authorized Origin' mismatch.");
+    const handleGoogleError = (error) => {
+        console.error("Google Sign In Error:", error);
+        setErrorMsg("Google Sign In failed. Possible causes: 1) Authorized Origins mismatch in Google Cloud Console, 2) Client ID invalid, 3) Network blocked.");
         toast.error('Google Sign In Failed', { theme: "dark" });
     };
 

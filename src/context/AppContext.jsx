@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api/axios';
-import { jwtDecode } from 'jwt-decode';
+import jwtDecode from 'jwt-decode';
 
 const AppContext = createContext();
 
@@ -107,9 +107,15 @@ export const AppProvider = ({ children }) => {
         try {
             console.log("Attempting Google Login with backend...");
             const response = await api.post('/users/google/', { token: credential });
-
-            if (!response.data || !response.data.access) {
+            
+            if (!response?.data) {
+                console.error("Empty response from backend");
                 throw new Error("Invalid response from server");
+            }
+
+            if (!response.data.access || !response.data.user) {
+                console.error("Missing access token or user data:", response.data);
+                throw new Error("Invalid response structure");
             }
 
             const { access, refresh, user: userData } = response.data;
@@ -131,8 +137,8 @@ export const AppProvider = ({ children }) => {
             toast.success(`Welcome ${userData.first_name || 'back'}!`);
             return true;
         } catch (error) {
-            console.error("Google Login Error:", error);
-            toast.error(error.response?.data?.error || "Google Login Failed");
+            console.error("Google Login Error:", error.response?.data || error.message);
+            toast.error(error.response?.data?.error || error.message || "Google Login Failed");
             return false;
         }
     };
