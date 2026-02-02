@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
@@ -20,6 +20,41 @@ import 'react-toastify/dist/ReactToastify.css';
 import ProfileModal from './components/ProfileModal';
 import { User, Search } from 'lucide-react';
 import { useState } from 'react';
+
+// Loading component
+const LoadingFallback = () => (
+  <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white' }}>
+    Loading...
+  </div>
+);
+
+// Error Boundary
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white', flexDirection: 'column' }}>
+          <h1>Something went wrong</h1>
+          <p>{this.state.error?.message}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const Layout = ({ children }) => {
   const { user } = useApp();
@@ -266,6 +301,27 @@ const PublicRoute = ({ children }) => {
 
 const AppRoutes = () => {
   const location = useLocation();
+  const { authLoading } = useApp();
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div style={{ 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        background: 'var(--bg-primary)', 
+        color: 'white',
+        fontSize: '18px'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ marginBottom: '1rem' }}>Loading Thrifty...</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Initializing your financial dashboard</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes key={location.pathname} location={location}>
@@ -292,12 +348,16 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AppProvider>
-      <Router>
-        <AppRoutes />
-        <ToastContainer position="top-right" theme="dark" />
-      </Router>
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <div style={{ display: 'contents' }}>
+          <Router>
+            <AppRoutes />
+            <ToastContainer position="top-right" theme="dark" />
+          </Router>
+        </div>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 

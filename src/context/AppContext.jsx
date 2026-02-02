@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../api/axios';
-import jwtDecode from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 
 const AppContext = createContext();
 
@@ -50,26 +50,41 @@ export const AppProvider = ({ children }) => {
 
     // Check Auth on Mount
     useEffect(() => {
+        console.log('Starting auth check...');
         const checkAuth = async () => {
-            const token = localStorage.getItem('access_token');
-            if (token) {
-                try {
-                    // Token is valid, fetch user profile
-                    const res = await api.get('/users/me/');
-                    setUser({
-                        ...res.data,
-                        name: res.data.first_name || res.data.username || 'User',
-                        isAuthenticated: true
-                    });
+            try {
+                const token = localStorage.getItem('access_token');
+                console.log('Token exists:', !!token);
+                
+                if (token) {
+                    try {
+                        // Token is valid, fetch user profile
+                        const res = await api.get('/users/me/');
+                        setUser({
+                            ...res.data,
+                            name: res.data.first_name || res.data.username || 'User',
+                            isAuthenticated: true
+                        });
 
-                    // Fetch user data after authentication
-                    await fetchUserData();
-                } catch (error) {
-                    console.error("Auth check failed", error);
-                    logout();
+                        // Fetch user data after authentication
+                        await fetchUserData();
+                    } catch (error) {
+                        console.error("Auth check failed", error);
+                        logout();
+                    }
+                } else {
+                    // No token, user is not authenticated
+                    console.log('No token found, user not authenticated');
+                    setUser({ name: '', email: null, isAuthenticated: false, settings: { currency: 'INR' } });
                 }
+            } catch (error) {
+                console.error("Error in auth check:", error);
+                // Set default state on error
+                setUser({ name: '', email: null, isAuthenticated: false, settings: { currency: 'INR' } });
+            } finally {
+                console.log('Auth check complete, setting authLoading to false');
+                setAuthLoading(false);
             }
-            setAuthLoading(false);
         };
         checkAuth();
     }, []);
@@ -106,23 +121,30 @@ export const AppProvider = ({ children }) => {
     const googleLogin = async (credential) => {
         try {
             console.log("Attempting Google Login with backend...");
+            console.log("Credential type:", typeof credential);
+            console.log("Credential length:", credential?.length);
+            
             const response = await api.post('/users/google/', { token: credential });
+            console.log("Google Login Response:", response.data);
             
             if (!response?.data) {
                 console.error("Empty response from backend");
                 throw new Error("Invalid response from server");
             }
 
-            if (!response.data.access || !response.data.user) {
+            const { access, refresh, user: userData } = response.data;
+            
+            if (!access || !userData) {
                 console.error("Missing access token or user data:", response.data);
-                throw new Error("Invalid response structure");
+                throw new Error("Invalid response structure - missing access token or user data");
             }
 
-            const { access, refresh, user: userData } = response.data;
             console.log("Google Login successful, user data:", userData);
 
             localStorage.setItem('access_token', access);
-            localStorage.setItem('refresh_token', refresh);
+            if (refresh) {
+                localStorage.setItem('refresh_token', refresh);
+            }
 
             setUser(prev => ({
                 ...prev,
@@ -137,8 +159,14 @@ export const AppProvider = ({ children }) => {
             toast.success(`Welcome ${userData.first_name || 'back'}!`);
             return true;
         } catch (error) {
-            console.error("Google Login Error:", error.response?.data || error.message);
-            toast.error(error.response?.data?.error || error.message || "Google Login Failed");
+            console.error("Google Login Error:", {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+            
+            const errorMsg = error.response?.data?.error || error.message || "Google Login Failed";
+            toast.error(errorMsg);
             return false;
         }
     };

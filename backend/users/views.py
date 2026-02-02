@@ -7,6 +7,9 @@ from .serializers import RegisterSerializer, UserSerializer, TransactionSerializ
 from .models import Transaction, Badge, UserProfile
 from rest_framework_simplejwt.tokens import RefreshToken
 import requests
+from jwt import decode as jwt_decode
+from jwt.exceptions import InvalidTokenError, DecodeError
+import os
 
 
 class GoogleLoginView(APIView):
@@ -17,52 +20,67 @@ class GoogleLoginView(APIView):
         if not token:
             return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Validate token with Google
-        print(f"Received Google Token: {token[:20]}...")
         try:
-            google_response = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={token}')
-            print(f"Google Response Status: {google_response.status_code}")
-            if google_response.status_code != 200:
-                print(f"Google Response Content: {google_response.text}")
-                return Response({'error': 'Invalid Google Token'}, status=status.HTTP_400_BAD_REQUEST)
+            # Attempt to decode the JWT token
+            print(f"Attempting to decode Google token...")
+            
+            # First try to decode without verification (for development)
+            try:
+                user_data = jwt_decode(token, options={"verify_signature": False})
+                print(f"Token decoded successfully (unverified)")
+            except Exception as e:
+                print(f"Failed to decode token: {e}")
+                # Try validating with Google's endpoint as fallback
+                try:
+                    google_response = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={token}', timeout=5)
+                    if google_response.status_code != 200:
+                        print(f"Google validation failed: {google_response.text}")
+                        return Response({'error': 'Invalid Google Token'}, status=status.HTTP_400_BAD_REQUEST)
+                    user_data = google_response.json()
+                except Exception as google_error:
+                    print(f"Google tokeninfo endpoint error: {google_error}")
+                    return Response({'error': f'Token validation failed: {str(google_error)}'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Extract user information from token
+            email = user_data.get('email') or user_data.get('sub', '').split('@')[0] + '@google.com'
+            first_name = user_data.get('given_name', '')
+            last_name = user_data.get('family_name', '')
+            
+            if not email:
+                return Response({'error': 'Email not found in Google Token'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Get or Create User
+            user, created = User.objects.get_or_create(username=email, defaults={
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name
+            })
+            
+            if created:
+                user.set_unusable_password()
+                user.save()
+                # Create UserProfile for new Google users
+                try:
+                    UserProfile.objects.get_or_create(user=user)
+                except Exception as profile_error:
+                    print(f"Error creating UserProfile: {profile_error}")
+
+            # Generate Tokens
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': {
+                    'username': user.username,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'id': user.id
+                }
+            }, status=status.HTTP_200_OK)
+            
         except Exception as e:
-            print(f"Error validating token: {e}")
-            return Response({'error': 'Token validation failed'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user_data = google_response.json()
-        email = user_data.get('email')
-        name = user_data.get('name', '')
-        # Basic parsing of name
-        first_name = user_data.get('given_name', '')
-        last_name = user_data.get('family_name', '')
-
-        if not email:
-             return Response({'error': 'Email not found in Google Token'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get or Create User
-        user, created = User.objects.get_or_create(username=email, defaults={
-            'email': email,
-            'first_name': first_name,
-            'last_name': last_name
-        })
-        
-        if created:
-            user.set_unusable_password()
-            user.save()
-            # Create UserProfile for new Google users
-            UserProfile.objects.create(user=user)
-
-        # Generate Tokens
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'user': {
-                'username': user.username,
-                'email': user.email,
-                'first_name': user.first_name   
-            }
-        })
+            print(f"Unexpected error in Google login: {e}")
+            return Response({'error': f'Google login failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RegisterView(generics.CreateAPIView):

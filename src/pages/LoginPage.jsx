@@ -36,6 +36,7 @@ const LoginPage = () => {
     const handleGoogleLogin = async (credentialResponse) => {
         if (credentialResponse.credential) {
             setIsLoading(true);
+            setErrorMsg('');
             console.log("Google credential received, calling googleLogin...");
             const success = await googleLogin(credentialResponse.credential);
 
@@ -49,11 +50,15 @@ const LoginPage = () => {
                 console.error("Google Login failed in AppContext");
                 setIsLoading(false);
             }
+        } else {
+            setErrorMsg("No credential received from Google");
+            console.error("No credential in response:", credentialResponse);
         }
     };
 
     const handleGoogleError = () => {
-        setErrorMsg("Google Popup Failed.");
+        setErrorMsg("Google login popup failed. Please try again.");
+        console.error("Google popup error");
     };
 
     return (

@@ -16,6 +16,7 @@ const SignupPage = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
 
     const [isLoading, setIsLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
     const handleSignup = async (e) => {
         e.preventDefault();
@@ -44,9 +45,23 @@ const SignupPage = () => {
     // Google Signup (Handled same as Login)
     const handleGoogleSignup = async (credentialResponse) => {
         if (credentialResponse.credential) {
+            setIsLoading(true);
+            setErrorMsg('');
             const success = await googleLogin(credentialResponse.credential);
-            if (success) navigate('/');
+            if (success) {
+                setTimeout(() => {
+                    navigate('/');
+                }, 100);
+            } else {
+                setIsLoading(false);
+            }
+        } else {
+            setErrorMsg("No credential received from Google");
         }
+    };
+
+    const handleGoogleError = () => {
+        setErrorMsg("Google login popup failed. Please try again.");
     };
 
     return (
@@ -146,14 +161,20 @@ const SignupPage = () => {
                         <div style={{ height: '1px', background: 'var(--glass-border)', flex: 1 }}></div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center' }}>
                         <GoogleLogin
                             onSuccess={handleGoogleSignup}
-                            onError={() => toast.error('Google Signup Failed')}
+                            onError={handleGoogleError}
                             theme="filled_black"
                             shape="pill"
                             text="signup_with"
+                            disabled={isLoading}
                         />
+                        {errorMsg && (
+                            <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '4px' }}>
+                                {errorMsg}
+                            </p>
+                        )}
                     </div>
                 </form>
 
