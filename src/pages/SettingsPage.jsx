@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-    User, Bell, Shield, Wallet,
+    User, Bell, Shield,
     Moon, Globe, ChevronRight, Save,
-    Smartphone, Mail, Lock, Check, CreditCard, Download
+    Smartphone, Mail, Lock, Check
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 
 import { useLocation, useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 const SettingsPage = () => {
-    const { user } = useApp();
+    const { user, fetchUserData, fetchMe, isDark, toggleTheme } = useApp();
     const location = useLocation();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState(location.state?.tab || 'profile');
@@ -24,23 +25,33 @@ const SettingsPage = () => {
         bio: 'Full-stack developer enjoying the Thrifty life.',
         currency: 'INR',
         notifications: true,
-        darkMode: true
+        darkMode: isDark
     });
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setIsLoading(true);
-        setTimeout(() => {
-            setIsLoading(false);
+        try {
+            // Update the user's name on the backend
+
+            await api.patch('/users/me/', { first_name: formData.name });
+
+            // Refresh current user info so UI shows updated name
+            fetchMe && await fetchMe();
+
             toast.success('Settings saved successfully!');
             navigate('/');
-        }, 1000);
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            toast.error(error.response?.data?.error || 'Failed to save settings');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: <User size={18} /> },
         { id: 'preferences', label: 'Preferences', icon: <Globe size={18} /> },
         { id: 'security', label: 'Security', icon: <Shield size={18} /> },
-        { id: 'billing', label: 'Billing', icon: <Wallet size={18} /> },
     ];
 
     return (
@@ -185,7 +196,7 @@ const SettingsPage = () => {
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Use dark theme across the app</p>
                                     </div>
                                 </div>
-                                <Toggle checked={formData.darkMode} onChange={() => setFormData({ ...formData, darkMode: !formData.darkMode })} />
+                                <Toggle checked={isDark} onChange={toggleTheme} />
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
@@ -240,98 +251,7 @@ const SettingsPage = () => {
                         </motion.div>
                     )}
 
-                    {activeTab === 'billing' && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}
-                        >
-                            {/* Current Plan Card */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
-                                padding: '2rem',
-                                borderRadius: '16px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                color: 'white'
-                            }}>
-                                <div>
-                                    <h3 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Thrifty Pro</h3>
-                                    <p style={{ opacity: 0.9 }}>Your plan auto-renews on Jan 15, 2026</p>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    <span style={{ fontSize: '2rem', fontWeight: 'bold' }}>$9.99</span>
-                                    <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>/month</span>
-                                </div>
-                            </div>
-
-                            <div className="grid-layout" style={{ gridTemplateColumns: '1fr 1fr', gap: '1.5rem', display: 'grid' }}>
-                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
-                                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                        <CreditCard size={20} color="var(--accent-green)" /> Payment Method
-                                    </h4>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                                        <div style={{ background: 'white', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold', color: '#1a1a1a', fontSize: '0.8rem' }}>VISA</div>
-                                        <span>•••• •••• •••• 4242</span>
-                                    </div>
-                                    <button style={{ background: 'transparent', color: 'var(--accent-blue)', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.9rem' }}>Update Card</button>
-                                </div>
-
-                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
-                                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                        <Shield size={20} color="var(--accent-purple)" /> Plan Features
-                                    </h4>
-                                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        {['Unlimited Transactions', 'AI Financial Advisor', 'Export to PDF/CSV', 'Priority Support'].map(item => (
-                                            <li key={item} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                                <Check size={14} color="var(--accent-green)" /> {item}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <div>
-                                <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Billing History</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {[
-                                        { date: 'Dec 15, 2025', amount: '$9.99', status: 'Paid', invoice: '#INV-2025-012' },
-                                        { date: 'Nov 15, 2025', amount: '$9.99', status: 'Paid', invoice: '#INV-2025-011' },
-                                        { date: 'Oct 15, 2025', amount: '$9.99', status: 'Paid', invoice: '#INV-2025-010' }
-                                    ].map((item, idx) => (
-                                        <div key={idx} style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            padding: '1rem',
-                                            background: 'rgba(255,255,255,0.02)',
-                                            borderRadius: '12px',
-                                            border: '1px solid var(--glass-border)'
-                                        }}>
-                                            <div>
-                                                <p style={{ fontWeight: '500' }}>Thrifty Pro Subscription</p>
-                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.date}</p>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                                                <span style={{ fontWeight: 'bold' }}>{item.amount}</span>
-                                                <span style={{
-                                                    background: 'rgba(16, 185, 129, 0.2)',
-                                                    color: 'var(--accent-green)',
-                                                    padding: '4px 8px',
-                                                    borderRadius: '20px',
-                                                    fontSize: '0.75rem'
-                                                }}>{item.status}</span>
-                                                <button style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                                                    <Download size={18} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
+                    {/* Billing removed — app is free */}
 
                     {/* Footer Actions */}
                     <div style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}>

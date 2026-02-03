@@ -95,6 +95,34 @@ class MeView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+    
+    def patch(self, request):
+        """Allow updating basic user fields like first_name, last_name, email."""
+        try:
+            user = request.user
+            first_name = request.data.get('first_name')
+            last_name = request.data.get('last_name')
+            email = request.data.get('email')
+
+            updated = False
+            if first_name is not None:
+                user.first_name = first_name
+                updated = True
+            if last_name is not None:
+                user.last_name = last_name
+                updated = True
+            if email is not None:
+                user.email = email
+                updated = True
+
+            if updated:
+                user.save()
+
+            serializer = UserSerializer(user)
+            return Response(serializer.data)
+        except Exception as e:
+            print(f"Error updating user: {e}")
+            return Response({'error': 'Failed to update user.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserProfileView(APIView):
@@ -150,4 +178,21 @@ class BadgeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Automatically set the user when creating a badge
         serializer.save(user=self.request.user)
+
+
+class DeleteAccountView(APIView):
+    """Allow authenticated users to delete their account and related data."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        try:
+            user = request.user
+            username = user.username
+            # Deleting the user will cascade to profile, transactions, badges
+            user.delete()
+            print(f"Deleted user: {username}")
+            return Response({'detail': 'Account deleted successfully.'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"Error deleting account: {e}")
+            return Response({'error': 'Failed to delete account.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

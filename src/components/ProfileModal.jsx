@@ -1,17 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, LogOut, Settings, CreditCard, Mail } from 'lucide-react';
+import { X, User, LogOut, Settings, Mail, Trash2, Camera } from 'lucide-react';
+import api from '../api/axios';
+import { toast } from 'react-toastify';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router-dom';
 
 const ProfileModal = ({ isOpen, onClose }) => {
-    const { user, logout, points, badges } = useApp();
+    const { user, logout, points, badges, deleteAccount, fetchUserData } = useApp();
+    const [preview, setPreview] = useState(user.picture);
+    const [uploading, setUploading] = useState(false);
+
+    useEffect(() => {
+        setPreview(user.picture);
+    }, [user.picture]);
     const navigate = useNavigate();
 
     const handleLogout = () => {
         logout();
         onClose();
         navigate('/welcome');
+    };
+
+    const handleDeleteAccount = async () => {
+        const ok = window.confirm('Are you sure you want to permanently delete your account? This action cannot be undone.');
+        if (!ok) return;
+        const success = await deleteAccount();
+        if (success) {
+            onClose();
+            navigate('/welcome');
+        }
     };
 
     return (
@@ -82,26 +100,100 @@ const ProfileModal = ({ isOpen, onClose }) => {
                             </button>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{
-                                    width: '60px',
-                                    height: '60px',
-                                    borderRadius: '50%',
-                                    background: 'white',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    border: '4px solid rgba(255,255,255,0.2)'
-                                }}>
-                                    {user.picture ? (
-                                        <img src={user.picture} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-                                    ) : (
-                                        <User size={30} color="var(--accent-blue)" />
-                                    )}
+                                <div style={{ position: 'relative', width: '60px', height: '60px' }}>
+                                    <div style={{
+                                        width: '60px',
+                                        height: '60px',
+                                        borderRadius: '50%',
+                                        background: 'white',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        border: '4px solid rgba(255,255,255,0.2)',
+                                        overflow: 'hidden',
+                                        cursor: 'pointer'
+                                    }}
+                                        onClick={() => document.getElementById('profile-photo-input-modal').click()}
+                                    >
+                                        {preview ? (
+                                            <img src={preview} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+                                        ) : (
+                                            <User size={30} color="var(--accent-blue)" />
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={() => document.getElementById('profile-photo-input-modal').click()}
+                                        style={{
+                                            position: 'absolute',
+                                            bottom: '-4px',
+                                            right: '-4px',
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)',
+                                            border: '2px solid var(--bg-primary)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 4px 10px rgba(0,0,0,0.2)'
+                                        }}
+                                    >
+                                        <Camera size={14} color="white" />
+                                    </button>
+
+                                    <input
+                                        id="profile-photo-input-modal"
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        disabled={uploading}
+                                        onChange={async (e) => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            if (!file.type.startsWith('image/')) {
+                                                toast.error('Please select an image file');
+                                                return;
+                                            }
+                                            if (file.size > 5 * 1024 * 1024) {
+                                                toast.error('Image size should be less than 5MB');
+                                                return;
+                                            }
+
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => setPreview(reader.result);
+                                            reader.readAsDataURL(file);
+
+                                            setUploading(true);
+                                            try {
+                                                const formData = new FormData();
+                                                formData.append('profile_picture', file);
+
+                                                const response = await api.patch('/users/profile/', formData, {
+                                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                                });
+
+                                                if (response.data.profile_picture_url) {
+                                                    setPreview(response.data.profile_picture_url);
+                                                    toast.success('Profile photo updated!', { theme: 'dark' });
+                                                    // refresh other user data if needed
+                                                    fetchUserData && fetchUserData();
+                                                }
+                                            } catch (error) {
+                                                console.error('Error uploading profile photo:', error);
+                                                toast.error('Failed to upload photo');
+                                                setPreview(user.picture);
+                                            } finally {
+                                                setUploading(false);
+                                            }
+                                        }}
+                                    />
                                 </div>
                                 <div style={{ color: 'white' }}>
                                     <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem' }}>{user.name || 'User'}</h3>
                                     <span style={{ fontSize: '0.8rem', opacity: 0.9, background: 'rgba(0,0,0,0.2)', padding: '2px 8px', borderRadius: '10px' }}>
-                                        Pro Member
+                                        Member
                                     </span>
                                 </div>
                             </div>
@@ -129,8 +221,30 @@ const ProfileModal = ({ isOpen, onClose }) => {
 
                             <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <MenuItem icon={<Settings size={18} />} label="Account Settings" onClick={() => { onClose(); navigate('/settings', { state: { tab: 'profile' } }); }} />
-                                <MenuItem icon={<CreditCard size={18} />} label="Billing & Subscription" onClick={() => { onClose(); navigate('/settings', { state: { tab: 'billing' } }); }} />
 
+                                <button
+                                    onClick={handleDeleteAccount}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.75rem',
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        background: 'rgba(239, 68, 68, 0.06)',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: 'var(--accent-red)',
+                                        cursor: 'pointer',
+                                        marginTop: '0.5rem',
+                                        fontSize: '0.9rem',
+                                        transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.2)'}
+                                    onMouseLeave={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                >
+                                    <Trash2 size={18} />
+                                    Delete Account
+                                </button>
                                 <button
                                     onClick={handleLogout}
                                     style={{

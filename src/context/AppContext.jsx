@@ -89,6 +89,44 @@ export const AppProvider = ({ children }) => {
         checkAuth();
     }, []);
 
+    // Theme (dark / light)
+    const [isDark, setIsDark] = useState(() => {
+        try {
+            const saved = localStorage.getItem('thrifty_theme');
+            return saved ? saved === 'dark' : true;
+        } catch (e) {
+            return true;
+        }
+    });
+
+    useEffect(() => {
+        try {
+            const theme = isDark ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '');
+            localStorage.setItem('thrifty_theme', isDark ? 'dark' : 'light');
+        } catch (e) {
+            console.error('Error applying theme:', e);
+        }
+    }, [isDark]);
+
+    const toggleTheme = () => setIsDark(prev => !prev);
+
+    // Fetch current user info (me)
+    const fetchMe = async () => {
+        try {
+            const res = await api.get('/users/me/');
+            const userData = res.data;
+            setUser({
+                ...userData,
+                name: userData.first_name || userData.username || 'User',
+                email: userData.email,
+                isAuthenticated: true
+            });
+        } catch (error) {
+            console.error('Error fetching user (me):', error);
+        }
+    };
+
     // Auth Actions
     const login = async (email, password) => {
         try {
@@ -192,6 +230,21 @@ export const AppProvider = ({ children }) => {
         setPoints(0);
         setBadges([]);
         toast.info("Logged out");
+    };
+
+    const deleteAccount = async () => {
+        try {
+            const res = await api.delete('/users/delete/');
+            console.log('Delete account response:', res.data);
+            // After deletion, clear local state and tokens
+            logout();
+            toast.success('Account deleted successfully');
+            return true;
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            toast.error(error.response?.data?.error || 'Failed to delete account');
+            return false;
+        }
     };
 
     // Data Actions - Now using Backend API
@@ -304,12 +357,16 @@ export const AppProvider = ({ children }) => {
             googleLogin,
             register,
             logout,
+            deleteAccount,
             transactions,
             addTransaction,
             deleteTransaction,
             points,
             badges,
-            fetchUserData
+            fetchUserData,
+            fetchMe,
+            isDark,
+            toggleTheme
         }}>
             {children}
         </AppContext.Provider>

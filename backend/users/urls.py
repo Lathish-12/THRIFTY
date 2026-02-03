@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import RegisterView, MeView, GoogleLoginView, UserProfileView, TransactionViewSet, BadgeViewSet
+from .views import RegisterView, MeView, GoogleLoginView, UserProfileView, TransactionViewSet, BadgeViewSet, DeleteAccountView
 
 # Create a router and register viewsets
 router = DefaultRouter()
@@ -18,6 +18,7 @@ urlpatterns = [
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('me/', MeView.as_view(), name='user_me'),
     path('profile/', UserProfileView.as_view(), name='user_profile'),
+    path('delete/', DeleteAccountView.as_view(), name='delete_account'),
     path('', include(router.urls)),  # Include router URLs
 ]
 

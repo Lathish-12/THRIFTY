@@ -204,3 +204,17 @@ h6 {
     display: none !important;
   }
 }
+
+/* Light theme override - applied when [data-theme="light"] is set on <html> */
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #e6eef8;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent-green: #059669;
+  --accent-red: #dc2626;
+  --accent-blue: #2563eb;
+  --accent-purple: #7c3aed;
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(16, 24, 39, 0.06);
+}
