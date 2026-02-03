@@ -82,6 +82,49 @@ const Dashboard = ({ transactions }) => {
                 </div>
             </motion.div>
 
+            {/* Summary Cards (Transactions This Month, Avg, Top Category, Receipts) */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="glass-panel"
+                style={{ gridColumn: 'span 12', padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}
+            >
+                {
+                    (() => {
+                        const now = new Date();
+                        const currentMonth = now.getMonth();
+                        const currentYear = now.getFullYear();
+
+                        const transactionsThisMonth = transactions.filter(t => {
+                            const d = new Date(t.date);
+                            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                        });
+
+                        const avgTransaction = transactions.length > 0 ? (transactions.reduce((a, b) => a + Number(b.amount), 0) / transactions.length) : 0;
+
+                        const topCategoryObj = categoryData.reduce((prev, curr) => (curr.value > (prev?.value || 0) ? curr : prev), null);
+                        const topCategory = topCategoryObj ? topCategoryObj.name : '—';
+
+                        const receiptsUploaded = transactions.filter(t => t.receipt || t.receipt_url).length;
+
+                        const summary = [
+                            { title: 'Transactions This Month', value: transactionsThisMonth.length },
+                            { title: 'Avg Transaction', value: formatCurrency(avgTransaction) },
+                            { title: 'Top Category', value: topCategory },
+                            { title: 'Receipts Uploaded', value: receiptsUploaded }
+                        ];
+
+                        return summary.map((s, i) => (
+                            <div key={s.title} style={{ padding: '1rem', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{s.title}</p>
+                                <h4 style={{ fontSize: '1.25rem' }}>{s.value}</h4>
+                            </div>
+                        ));
+                    })()
+                }
+            </motion.div>
+
             {/* Chart Section */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}

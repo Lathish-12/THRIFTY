@@ -1,4 +1,4 @@
-# THRIFTY Deployment Guide
+npm run devnpm run dev# THRIFTY Deployment Guide
 
 ## Prerequisites
 - GitHub account (for version control)
@@ -129,3 +129,48 @@ Total cost: Potentially free!
 **Database errors?**
 - Check Railway PostgreSQL is running
 - Run migrations: Railway auto-runs on deploy
+
+## Local Development Setup
+
+For those who want to run the project locally:
+
+### Backend (Django)
+1. Navigate to the backend directory:
+    ```bash
+    cd C:\Users\ELCOT\THRIFTY\backend
+    ```
+2. Set up a virtual environment and activate it:
+    ```bash
+    python -m venv venv
+    venv\Scripts\activate
+    ```
+3. Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+4. Apply database migrations:
+    ```bash
+    python manage.py migrate
+    ```
+5. Run the development server:
+    ```bash
+    python manage.py runserver 127.0.0.1:8000
+    ```
+
+### Frontend (Vite)
+1. Navigate to the frontend directory:
+    ```bash
+    cd C:\Users\ELCOT\THRIFTY\frontend
+    ```
+2. Install dependencies:
+    ```bash
+    npm install
+    ```
+3. Start the development server:
+    ```bash
+    npm run dev
+    ```
+
+Now you can access the frontend at `http://localhost:3000` and the backend at `http://127.0.0.1:8000`.
+
+Remember to set up your `.env` files for both frontend and backend with the appropriate environment variables as mentioned in the deployment steps.
