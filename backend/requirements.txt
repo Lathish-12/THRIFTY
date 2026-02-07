@@ -5,3 +5,6 @@ djangorestframework-simplejwt
 requests
 python-decouple
 Pillow
+anthropic
+pyjwt
+gunicorn
