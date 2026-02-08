@@ -39,7 +39,7 @@ const HomePage = () => {
                             {user.email}
                         </p>
                         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                            You are on track with your monthly budget. Check your rewards progress!
+                            You are on track with your monthly budget. Keep up the great work!
                         </p>
                     </div>
                 </div>

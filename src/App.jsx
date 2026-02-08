@@ -4,7 +4,6 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Transactions from './pages/Transactions';
 import Trips from './pages/Trips';
-import Rewards from './pages/Rewards';
 import Advisor from './pages/Advisor';
 import LoginPage from './pages/LoginPage';
 import WelcomePage from './pages/WelcomePage';
@@ -72,7 +71,6 @@ const Layout = ({ children }) => {
     { name: 'Smart Budgets', path: '/budgets' },
     { name: 'Financial Goals', path: '/goals' },
     { name: 'Analytics & Insights', path: '/analytics' },
-    { name: 'Rewards Hub', path: '/rewards' },
     { name: 'AI Advisor', path: '/advisor' },
     { name: 'Account Settings', path: '/settings' },
   ];
@@ -310,12 +308,12 @@ const AppRoutes = () => {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        background: 'var(--bg-primary)', 
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-primary)',
         color: 'white',
         fontSize: '18px'
       }}>
@@ -337,7 +335,6 @@ const AppRoutes = () => {
       {/* Protected Routes */}
       <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-      <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
       <Route path="/budgets" element={<ProtectedRoute><BudgetPage /></ProtectedRoute>} />
       <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />

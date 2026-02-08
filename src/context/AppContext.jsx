@@ -55,7 +55,7 @@ export const AppProvider = ({ children }) => {
             try {
                 const token = localStorage.getItem('access_token');
                 console.log('Token exists:', !!token);
-                
+
                 if (token) {
                     try {
                         // Token is valid, fetch user profile
@@ -161,17 +161,17 @@ export const AppProvider = ({ children }) => {
             console.log("Attempting Google Login with backend...");
             console.log("Credential type:", typeof credential);
             console.log("Credential length:", credential?.length);
-            
+
             const response = await api.post('/users/google/', { token: credential });
             console.log("Google Login Response:", response.data);
-            
+
             if (!response?.data) {
                 console.error("Empty response from backend");
                 throw new Error("Invalid response from server");
             }
 
             const { access, refresh, user: userData } = response.data;
-            
+
             if (!access || !userData) {
                 console.error("Missing access token or user data:", response.data);
                 throw new Error("Invalid response structure - missing access token or user data");
@@ -202,7 +202,7 @@ export const AppProvider = ({ children }) => {
                 data: error.response?.data,
                 message: error.message
             });
-            
+
             const errorMsg = error.response?.data?.error || error.message || "Google Login Failed";
             toast.error(errorMsg);
             return false;
@@ -256,15 +256,7 @@ export const AppProvider = ({ children }) => {
             // Update local state
             setTransactions(prev => [response.data, ...prev]);
 
-            // Update points
-            const newPoints = points + 10;
-            setPoints(newPoints);
-            await api.patch('/users/profile/', { points: newPoints });
-
-            // Check badges
-            await checkBadges();
-
-            toast.success('Transaction added! +10 Points', { theme: "dark" });
+            toast.success('Transaction added!', { theme: "dark" });
             return response.data;
         } catch (error) {
             console.error('Error adding transaction:', error);

@@ -196,3 +196,136 @@ class DeleteAccountView(APIView):
             print(f"Error deleting account: {e}")
             return Response({'error': 'Failed to delete account.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class ClaudeAIView(APIView):
+    """AI Financial Advisor powered by Claude AI"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            import anthropic
+            from decouple import config
+            
+            # Get user message
+            user_message = request.data.get('message', '')
+            if not user_message:
+                return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get user's financial data for context
+            transactions = Transaction.objects.filter(user=request.user)
+            
+            # Calculate financial summary
+            expenses = transactions.filter(type='expense')
+            income = transactions.filter(type='income')
+            total_expense = sum(float(t.amount) for t in expenses)
+            total_income = sum(float(t.amount) for t in income)
+            
+            # Category breakdown
+            category_summary = {}
+            for t in expenses:
+                cat = t.category or 'Uncategorized'
+                category_summary[cat] = category_summary.get(cat, 0) + float(t.amount)
+            
+            top_categories = sorted(category_summary.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            # Build context for Claude
+            financial_context = f"""
+User's Financial Summary:
+- Total Transactions: {transactions.count()}
+- Total Income: ₹{total_income:.2f}
+- Total Expenses: ₹{total_expense:.2f}
+- Net Balance: ₹{total_income - total_expense:.2f}
+
+Top Spending Categories:
+{chr(10).join([f"- {cat}: ₹{amount:.2f}" for cat, amount in top_categories])}
+
+Recent Transactions (last 5):
+{chr(10).join([f"- {t.description}: ₹{t.amount} ({t.category}, {t.date})" for t in transactions.order_by('-date')[:5]])}
+"""
+            
+            # Get API key
+            api_key = config('ANTHROPIC_API_KEY', default=None)
+            
+            if not api_key or api_key == 'your-claude-api-key-here':
+                # Fallback to smart mock responses if no API key
+                return self._generate_mock_response(user_message, {
+                    'total_expense': total_expense,
+                    'total_income': total_income,
+                    'categories': top_categories,
+                    'transaction_count': transactions.count()
+                })
+            
+            # Initialize Claude client
+            client = anthropic.Anthropic(api_key=api_key)
+            
+            # Create message with Claude
+            message = client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1024,
+                system=f"""You are Thrifty AI, an expert financial advisor integrated into a personal finance app. 
+You provide personalized financial advice based on the user's actual transaction data.
+
+{financial_context}
+
+Guidelines:
+- Be friendly, encouraging, and supportive
+- Provide specific, actionable advice based on their data
+- Use their actual numbers when giving recommendations
+- Format currency as ₹ (Indian Rupees)
+- Keep responses concise but informative
+- Highlight insights with **bold text** for emphasis
+- When appropriate, suggest concrete next steps
+- Be honest about limitations and encourage professional advice for complex situations
+
+Your goal is to help users understand their finances better and make smarter money decisions.""",
+                messages=[
+                    {"role": "user", "content": user_message}
+                ]
+            )
+            
+            # Extract response
+            response_text = message.content[0].text
+            
+            return Response({
+                'response': response_text,
+                'type': 'text',
+                'powered_by': 'claude-3.5-sonnet'
+            })
+            
+        except Exception as e:
+            print(f"Claude AI Error: {e}")
+            # Fallback to mock response on error
+            return self._generate_mock_response(
+                user_message,
+                {
+                    'total_expense': 0,
+                    'total_income': 0,
+                    'categories': [],
+                    'transaction_count': 0
+                }
+            )
+    
+    def _generate_mock_response(self, query, insights):
+        """Fallback mock responses when Claude API is not available"""
+        lowerQuery = query.lower()
+        
+        if 'spending' in lowerQuery or 'expense' in lowerQuery:
+            return Response({
+                'response': f"You've spent **₹{insights['total_expense']:.0f}** in total. To get more detailed AI-powered insights, please add your Claude API key to the backend .env file.",
+                'type': 'text',
+                'powered_by': 'fallback'
+            })
+        
+        if 'save' in lowerQuery or 'saving' in lowerQuery:
+            return Response({
+                'response': "💡 **Smart Saving Tips:**\n\n1. Track every expense\n2. Follow the 50/30/20 rule\n3. Automate your savings\n\n*For AI-powered personalized advice, add your Claude API key.*",
+                'type': 'text',
+                'powered_by': 'fallback'
+            })
+        
+        return Response({
+            'response': f"I can help you with financial insights! However, for the best AI-powered experience, please add your Claude API key to the backend .env file.\n\nYour current stats:\n- **{insights['transaction_count']}** transactions tracked\n- **₹{insights['total_expense']:.0f}** in expenses\n\nTry asking about budgets, savings, or spending patterns!",
+            'type': 'text',
+            'powered_by': 'fallback'
+        })
+

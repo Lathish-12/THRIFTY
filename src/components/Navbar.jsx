@@ -35,7 +35,6 @@ const Navbar = () => {
                 <NavItem to="/budgets" icon={<Wallet size={22} />} text="Budget" />
                 <NavItem to="/goals" icon={<Target size={22} />} text="Goals" />
                 <NavItem to="/analytics" icon={<TrendingUp size={22} />} text="Analytics" />
-                <NavItem to="/rewards" icon={<Gift size={22} />} text="Rewards" />
                 <NavItem to="/advisor" icon={<MessageCircle size={22} />} text="Advisor" />
                 <NavItem to="/trips" icon={<Briefcase size={22} />} text="Trips" />
             </div>
