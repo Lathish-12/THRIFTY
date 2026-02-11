@@ -114,7 +114,7 @@ const LoginPage = () => {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <a href="#" style={{ fontSize: '0.875rem', color: 'var(--accent-blue)', textDecoration: 'none' }}>Forgot Password?</a>
+                        <Link to="/forgot-password" style={{ fontSize: '0.875rem', color: 'var(--accent-blue)', textDecoration: 'none' }}>Forgot Password?</Link>
                     </div>
 
                     <motion.button

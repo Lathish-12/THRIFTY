@@ -8,6 +8,7 @@ import Advisor from './pages/Advisor';
 import LoginPage from './pages/LoginPage';
 import WelcomePage from './pages/WelcomePage';
 import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import SettingsPage from './pages/SettingsPage';
 import BudgetPage from './pages/BudgetPage';
 import GoalsPage from './pages/GoalsPage';
@@ -331,6 +332,7 @@ const AppRoutes = () => {
       <Route path="/welcome" element={<PublicRoute><WelcomePage /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+      <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
       {/* Protected Routes */}
       <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
