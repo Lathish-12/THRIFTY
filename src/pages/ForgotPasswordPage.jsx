@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Mail, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import api from '../services/api';
+import api from '../api/axios';
 
 const ForgotPasswordPage = () => {
     const navigate = useNavigate();
