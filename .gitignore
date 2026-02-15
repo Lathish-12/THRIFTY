@@ -24,6 +24,9 @@ dist-ssr
 *.sw?
 
 .env
+*.env.local
+RENDER_ENV_VARIABLES.md
+RAILWAY_STEP5_VARIABLES.md
 *.exe
 *.zip
 backend/db.sqlite3
