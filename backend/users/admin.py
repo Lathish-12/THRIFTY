@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UserProfile, Transaction, Badge
+from .models import UserProfile, Transaction, Badge, Budget
 
 
 @admin.register(UserProfile)
@@ -21,4 +21,11 @@ class BadgeAdmin(admin.ModelAdmin):
     list_display = ['user', 'name', 'earned_at']
     search_fields = ['user__username', 'name']
     list_filter = ['earned_at']
+
+
+@admin.register(Budget)
+class BudgetAdmin(admin.ModelAdmin):
+    list_display = ['user', 'category', 'limit', 'color', 'created_at']
+    search_fields = ['user__username', 'category']
+    list_filter = ['created_at']
 

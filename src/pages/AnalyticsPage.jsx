@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useApp } from '../context/AppContext';
+
 
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -8,8 +10,8 @@ const CustomTooltip = ({ active, payload, label }) => {
             <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '10px', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '5px' }}>{label}</p>
                 {payload.map((entry, index) => (
-                    <p key={index} style={{ color: entry.color, margin: 0 }}>
-                        {entry.name}: ₹{entry.value.toLocaleString()}
+                    <p key={index} style={{ color: entry.color || entry.stroke || '#fff', margin: 0 }}>
+                        {entry.name}: ₹{parseFloat(entry.value).toLocaleString()}
                     </p>
                 ))}
             </div>
@@ -19,23 +21,54 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const AnalyticsPage = () => {
-    const spendingData = [
-        { name: 'Food', value: 4000, color: '#f43f5e' },
-        { name: 'Transport', value: 3000, color: '#3b82f6' },
-        { name: 'Shopping', value: 2000, color: '#10b981' },
-        { name: 'Bills', value: 2780, color: '#a855f7' },
-        { name: 'Entertainment', value: 1890, color: '#f59e0b' },
-    ];
+    const { transactions } = useApp();
 
-    const monthlyData = [
-        { name: 'Jan', income: 40000, expense: 24000 },
-        { name: 'Feb', income: 30000, expense: 13980 },
-        { name: 'Mar', income: 20000, expense: 9800 },
-        { name: 'Apr', income: 27800, expense: 39080 },
-        { name: 'May', income: 18900, expense: 4800 },
-        { name: 'Jun', income: 23900, expense: 3800 },
-        { name: 'Jul', income: 34900, expense: 4300 },
-    ];
+    // 1. Process Spending Data (by category)
+    const categoryTotals = transactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, curr) => {
+            const cat = curr.category || 'Other';
+            acc[cat] = (acc[cat] || 0) + parseFloat(curr.amount);
+            return acc;
+        }, {});
+
+    const colors = ['#f43f5e', '#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ec4899', '#8b5cf6'];
+    const spendingData = Object.entries(categoryTotals).map(([name, value], index) => ({
+        name,
+        value,
+        color: colors[index % colors.colors?.length || index % 7]
+    }));
+
+    // 2. Process Monthly Data (last 6 months)
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlySummary = transactions.reduce((acc, t) => {
+        const date = new Date(t.date);
+        const monthYear = `${months[date.getMonth()]} ${date.getFullYear()}`;
+        if (!acc[monthYear]) {
+            acc[monthYear] = { name: monthYear, income: 0, expense: 0, sortKey: date.getTime() };
+        }
+        if (t.type === 'income') acc[monthYear].income += parseFloat(t.amount);
+        else acc[monthYear].expense += parseFloat(t.amount);
+        return acc;
+    }, {});
+
+    const monthlyData = Object.values(monthlySummary)
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .slice(-6); // Only show last 6 months
+
+    if (transactions.length === 0) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '5rem 2rem' }}>
+                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Financial Analytics</h2>
+                <div className="glass-panel" style={{ padding: '3rem' }}>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>
+                        Add some transactions to see your financial analytics here!
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
 
     return (
         <div className="container">

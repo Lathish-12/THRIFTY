@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink } from 'react-router-dom';
-import { Home, PieChart, CreditCard, LayoutDashboard, Gift, MessageCircle, Wallet, Target, TrendingUp, Briefcase } from 'lucide-react';
+import { Home, PieChart, CreditCard, LayoutDashboard, Gift, MessageCircle, Wallet, Target, TrendingUp } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const Navbar = () => {
@@ -36,7 +36,6 @@ const Navbar = () => {
                 <NavItem to="/goals" icon={<Target size={22} />} text="Goals" />
                 <NavItem to="/analytics" icon={<TrendingUp size={22} />} text="Analytics" />
                 <NavItem to="/advisor" icon={<MessageCircle size={22} />} text="Advisor" />
-                <NavItem to="/trips" icon={<Briefcase size={22} />} text="Trips" />
             </div>
         </nav>
     );

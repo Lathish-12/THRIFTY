@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Transaction, Badge
+from .models import UserProfile, Transaction, Badge, Budget, Goal
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -65,4 +65,32 @@ class BadgeSerializer(serializers.ModelSerializer):
         model = Badge
         fields = ['id', 'name', 'description', 'icon', 'earned_at']
         read_only_fields = ['earned_at']
+
+
+class BudgetSerializer(serializers.ModelSerializer):
+    spent = serializers.SerializerMethodField()  # Calculated property
+    
+    class Meta:
+        model = Budget
+        fields = ['id', 'category', 'limit', 'spent', 'color', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'spent']
+    
+    def get_spent(self, obj):
+        """Calculate total spent for this budget category"""
+        from django.db.models import Sum
+        try:
+            total = Transaction.objects.filter(
+                user=obj.user,
+                category__icontains=obj.category.split()[0],  # Match category name
+                type='expense'
+            ).aggregate(Sum('amount'))['amount__sum']
+            return float(total) if total else 0.0
+        except (Exception, IndexError) as e:
+            return 0.0
+
+class GoalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Goal
+        fields = ['id', 'name', 'target_amount', 'current_amount', 'deadline', 'icon', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 

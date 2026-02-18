@@ -11,7 +11,7 @@ const AIAdvisor = ({ transactions }) => {
     const [messages, setMessages] = useState([
         {
             role: 'ai',
-            text: "👋 Hello! I'm your **Thrifty AI Financial Advisor** powered by **Claude AI**. I can provide deep insights into your spending patterns, predict future expenses, and help you achieve your financial goals. How can I help you today?",
+            text: "👋 Hello! I'm your **Thrifty AI Financial Advisor** powered by **Google Gemini**. I can provide deep insights into your spending patterns, predict future expenses, and help you achieve your financial goals. How can I help you today?",
             type: 'text'
         }
     ]);
@@ -86,13 +86,16 @@ const AIAdvisor = ({ transactions }) => {
                 role: 'ai',
                 text: response.data.response,
                 type: response.data.type || 'text',
-                poweredBy: response.data.powered_by || 'claude'
+                poweredBy: response.data.powered_by
             };
 
-            // Update API status
-            if (response.data.powered_by === 'claude-3.5-sonnet') {
+            // Update API status based on new response types
+            const pb = response.data.powered_by;
+            if (pb.includes('claude-3.5-sonnet') || pb.includes('Gemini')) {
                 setApiStatus('active');
-            } else if (response.data.powered_by === 'fallback') {
+            } else if (pb === 'thrifty-local-analyzer') {
+                setApiStatus('fallback');
+            } else {
                 setApiStatus('fallback');
             }
 
@@ -204,8 +207,8 @@ const AIAdvisor = ({ transactions }) => {
                                     }}
                                 />
                                 <span style={{ color: apiStatus === 'active' ? '#10b981' : apiStatus === 'fallback' ? '#f59e0b' : '#6366f1' }}>
-                                    {apiStatus === 'active' ? 'Powered by Claude 3.5 Sonnet' :
-                                        apiStatus === 'fallback' ? 'Fallback Mode' :
+                                    {apiStatus === 'active' ? 'Live AI (Gemini/Claude)' :
+                                        apiStatus === 'fallback' ? 'Smart Data Analysis' :
                                             'AI Ready'}
                                 </span>
                             </div>
@@ -264,7 +267,7 @@ const AIAdvisor = ({ transactions }) => {
                         }}
                     >
                         <Info size={16} />
-                        Running in fallback mode. Add your Claude API key to `.env` for full AI capabilities.
+                        Currently using Smart Data Analysis. Add your Gemini API key to `.env` for advanced AI conversation.
                     </motion.div>
                 )}
 
@@ -330,7 +333,7 @@ const AIAdvisor = ({ transactions }) => {
                                     {renderMessageText(msg.text, msg.role)}
 
                                     {/* Show AI model badge */}
-                                    {msg.role === 'ai' && msg.poweredBy === 'claude-3.5-sonnet' && (
+                                    {msg.role === 'ai' && msg.poweredBy && (
                                         <div style={{
                                             marginTop: '0.75rem',
                                             paddingTop: '0.75rem',
@@ -342,7 +345,7 @@ const AIAdvisor = ({ transactions }) => {
                                             gap: '0.5rem'
                                         }}>
                                             <Sparkles size={12} />
-                                            Powered by Claude 3.5 Sonnet
+                                            Powered by {msg.poweredBy}
                                         </div>
                                     )}
                                 </div>
@@ -459,7 +462,7 @@ const AIAdvisor = ({ transactions }) => {
                                         handleSend();
                                     }
                                 }}
-                                placeholder="Ask Claude anything about your finances..."
+                                placeholder="Ask me anything about your finances..."
                                 disabled={isTyping}
                                 style={{
                                     width: '100%',
@@ -530,8 +533,8 @@ const AIAdvisor = ({ transactions }) => {
                     }}>
                         <Lightbulb size={14} />
                         {apiStatus === 'active'
-                            ? 'Powered by Claude AI with your real transaction data'
-                            : 'Add Claude API key for AI-powered insights'}
+                            ? 'Powered by Gemini/Claude AI with your real transaction data'
+                            : 'Add Gemini/Claude API key for AI-powered insights'}
                     </div>
                 </div>
             </motion.div>

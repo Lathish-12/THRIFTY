@@ -280,6 +280,23 @@ export const AppProvider = ({ children }) => {
         }
     };
 
+    const updateTransaction = async (id, transactionData) => {
+        try {
+            // Update in backend
+            const response = await api.patch(`/users/transactions/${id}/`, transactionData);
+
+            // Update local state
+            setTransactions(prev => prev.map(t => t.id === id ? response.data : t));
+
+            toast.success('Transaction updated!', { theme: "dark" });
+            return response.data;
+        } catch (error) {
+            console.error('Error updating transaction:', error);
+            toast.error('Failed to update transaction');
+            throw error;
+        }
+    };
+
     // eslint-disable-next-line no-unused-vars
     const addPoints = async (amount) => {
         try {
@@ -353,6 +370,7 @@ export const AppProvider = ({ children }) => {
             transactions,
             addTransaction,
             deleteTransaction,
+            updateTransaction,
             points,
             badges,
             fetchUserData,

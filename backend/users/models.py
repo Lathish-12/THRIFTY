@@ -61,3 +61,50 @@ class Badge(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.name}"
+
+
+class Budget(models.Model):
+    """Budget model to store monthly spending limits by category"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='budgets')
+    category = models.CharField(max_length=100)
+    limit = models.DecimalField(max_digits=10, decimal_places=2)
+    color = models.CharField(max_length=7, default='#3b82f6')  # Hex color code
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        # Ensure user can't have duplicate budgets for the same category
+        unique_together = ['user', 'category']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.category} - ₹{self.limit}"
+    
+    @property
+    def spent(self):
+        """Calculate total spent in this category"""
+        from django.db.models import Sum
+        total = Transaction.objects.filter(
+            user=self.user,
+            category__icontains=self.category.split()[0],  # Match category name
+            type='expense'
+        ).aggregate(Sum('amount'))['amount__sum']
+        return total or 0
+
+
+class Goal(models.Model):
+    """Goal model to store user savings goals"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='goals')
+    name = models.CharField(max_length=100)
+    target_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    current_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    deadline = models.DateField()
+    icon = models.CharField(max_length=50, default='Target')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['deadline']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name} - ₹{self.target_amount}"

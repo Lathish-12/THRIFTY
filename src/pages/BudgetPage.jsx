@@ -1,19 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, TrendingUp, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import api from '../api/axios';
+import { toast } from 'react-toastify';
 
 const BudgetPage = () => {
-    // Mock data for budgets
-    const [budgets, setBudgets] = useState([
-        { id: 1, category: 'Food & Dining', limit: 5000, spent: 3200, color: '#f43f5e' },
-        { id: 2, category: 'Transportation', limit: 3000, spent: 2800, color: '#3b82f6' },
-        { id: 3, category: 'Entertainment', limit: 2000, spent: 500, color: '#a855f7' },
-        { id: 4, category: 'Shopping', limit: 4000, spent: 1200, color: '#10b981' },
-    ]);
+    const { user } = useApp();
+    const [budgets, setBudgets] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAddModal, setShowAddModal] = useState(false);
 
-    const totalBudget = budgets.reduce((acc, curr) => acc + curr.limit, 0);
-    const totalSpent = budgets.reduce((acc, curr) => acc + curr.spent, 0);
+    // Fetch budgets from backend
+    useEffect(() => {
+        if (user.isAuthenticated) {
+            fetchBudgets();
+        }
+    }, [user.isAuthenticated]);
+
+    const fetchBudgets = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/users/budgets/');
+            setBudgets(response.data);
+        } catch (error) {
+            console.error('Error fetching budgets:', error);
+            toast.error('Failed to load budgets');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const addBudget = async (newBudget) => {
+        try {
+            console.log('Adding budget:', newBudget);
+            const response = await api.post('/users/budgets/', newBudget);
+            console.log('Budget added successfully:', response.data);
+            setBudgets([...budgets, response.data]);
+            toast.success('Budget added successfully!');
+            setShowAddModal(false);
+        } catch (error) {
+            console.error('Error adding budget:', error);
+            console.error('Error response:', error.response);
+            console.error('Error data:', error.response?.data);
+            if (error.response?.data?.category) {
+                toast.error('Budget for this category already exists');
+            } else if (error.response?.data?.detail) {
+                toast.error(error.response.data.detail);
+            } else {
+                toast.error(`Failed to add budget: ${error.message}`);
+            }
+        }
+    };
+
+    const deleteBudget = async (id) => {
+        try {
+            await api.delete(`/users/budgets/${id}/`);
+            setBudgets(budgets.filter(b => b.id !== id));
+            toast.success('Budget deleted');
+        } catch (error) {
+            console.error('Error deleting budget:', error);
+            toast.error('Failed to delete budget');
+        }
+    };
+
+    const totalBudget = budgets.reduce((acc, curr) => acc + parseFloat(curr.limit || 0), 0);
+    const totalSpent = budgets.reduce((acc, curr) => acc + parseFloat(curr.spent || 0), 0);
+
+    if (loading) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '3rem' }}>
+                <h3>Loading budgets...</h3>
+            </div>
+        );
+    }
 
     return (
         <div className="container">
@@ -45,17 +105,39 @@ const BudgetPage = () => {
             <div className="glass-panel" style={{ padding: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3>Category Budgets</h3>
-                    <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
+                    <button
+                        className="btn-primary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                        onClick={() => setShowAddModal(true)}
+                    >
                         <Plus size={18} /> Add Budget
                     </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    {budgets.map((budget) => (
-                        <BudgetRow key={budget.id} budget={budget} />
-                    ))}
-                </div>
+                {budgets.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                        <p>No budgets yet. Click "Add Budget" to create one!</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {budgets.map((budget) => (
+                            <BudgetRow
+                                key={budget.id}
+                                budget={budget}
+                                onDelete={() => deleteBudget(budget.id)}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
+
+            {/* Add Budget Modal */}
+            {showAddModal && (
+                <AddBudgetModal
+                    onClose={() => setShowAddModal(false)}
+                    onAdd={addBudget}
+                />
+            )}
         </div>
     );
 };
@@ -90,7 +172,7 @@ const SummaryCard = ({ title, amount, icon }) => (
     </motion.div>
 );
 
-const BudgetRow = ({ budget }) => {
+const BudgetRow = ({ budget, onDelete }) => {
     const percentage = Math.min((budget.spent / budget.limit) * 100, 100);
     const isCrisis = percentage > 90;
 
@@ -100,12 +182,30 @@ const BudgetRow = ({ budget }) => {
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontWeight: '600' }}>{budget.category}</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        ₹{budget.spent.toLocaleString()} / ₹{budget.limit.toLocaleString()}
+                        ₹{parseFloat(budget.spent || 0).toLocaleString()} / ₹{parseFloat(budget.limit).toLocaleString()}
                     </span>
                 </div>
-                <span style={{ fontWeight: '600', color: isCrisis ? 'var(--accent-red)' : 'var(--text-primary)' }}>
-                    {percentage.toFixed(0)}%
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ fontWeight: '600', color: isCrisis ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+                        {percentage.toFixed(0)}%
+                    </span>
+                    <button
+                        onClick={onDelete}
+                        style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.5rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: '#ef4444'
+                        }}
+                        title="Delete budget"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
             </div>
             <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '5px', overflow: 'hidden' }}>
                 <motion.div
@@ -119,6 +219,149 @@ const BudgetRow = ({ budget }) => {
                     }}
                 />
             </div>
+        </div>
+    );
+};
+
+const AddBudgetModal = ({ onClose, onAdd }) => {
+    const [category, setCategory] = useState('');
+    const [limit, setLimit] = useState('');
+    const [color, setColor] = useState('#3b82f6');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!category || !limit || parseFloat(limit) <= 0) {
+            toast.error('Please fill all fields with valid values');
+            return;
+        }
+        onAdd({
+            category: category,
+            limit: parseFloat(limit),
+            color: color
+        });
+        setCategory('');
+        setLimit('');
+        setColor('#3b82f6');
+    };
+
+    return (
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+        }}>
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="glass-panel"
+                style={{
+                    width: '90%',
+                    maxWidth: '500px',
+                    padding: '2rem'
+                }}
+            >
+                <h3 style={{ marginBottom: '1.5rem' }}>Add New Budget</h3>
+                <form onSubmit={handleSubmit}>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                            Category Name
+                        </label>
+                        <input
+                            type="text"
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            placeholder="e.g., Food & Dining, Transport"
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--glass-border)',
+                                background: 'rgba(255,255,255,0.05)',
+                                color: 'var(--text-primary)',
+                                fontSize: '1rem'
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                            Monthly Limit (₹)
+                        </label>
+                        <input
+                            type="number"
+                            value={limit}
+                            onChange={(e) => setLimit(e.target.value)}
+                            placeholder="5000"
+                            min="0"
+                            step="100"
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--glass-border)',
+                                background: 'rgba(255,255,255,0.05)',
+                                color: 'var(--text-primary)',
+                                fontSize: '1rem'
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                            Color
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {['#f43f5e', '#3b82f6', '#a855f7', '#10b981', '#f59e0b', '#ec4899'].map(c => (
+                                <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setColor(c)}
+                                    style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '8px',
+                                        background: c,
+                                        border: color === c ? '3px solid white' : 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            style={{
+                                flex: 1,
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--glass-border)',
+                                background: 'transparent',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="btn-primary"
+                            style={{ flex: 1, padding: '0.75rem' }}
+                        >
+                            Add Budget
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
         </div>
     );
 };

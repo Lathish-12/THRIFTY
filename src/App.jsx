@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Transactions from './pages/Transactions';
-import Trips from './pages/Trips';
 import Advisor from './pages/Advisor';
 import LoginPage from './pages/LoginPage';
 import WelcomePage from './pages/WelcomePage';
@@ -76,8 +75,7 @@ const Layout = ({ children }) => {
     { name: 'Account Settings', path: '/settings' },
   ];
 
-  // add Trips to search items
-  SEARCH_ITEMS.push({ name: 'Trips Approval', path: '/trips' });
+
 
   const filteredItems = SEARCH_ITEMS.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -341,7 +339,6 @@ const AppRoutes = () => {
       <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
       <Route path="/advisor" element={<ProtectedRoute><Advisor /></ProtectedRoute>} />
-      <Route path="/trips" element={<ProtectedRoute><Trips /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
 
       {/* Catch all */}

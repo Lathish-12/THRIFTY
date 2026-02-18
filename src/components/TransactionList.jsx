@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Trash2, TrendingUp, TrendingDown, Pencil } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils';
 
-const TransactionList = ({ transactions, onDelete }) => {
+const TransactionList = ({ transactions, onDelete, onEdit }) => {
     return (
         <div className="glass-panel" style={{ padding: '2rem', height: '100%' }}>
             <h3 style={{ marginBottom: '1.5rem' }}>Recent History</h3>
@@ -20,14 +20,14 @@ const TransactionList = ({ transactions, onDelete }) => {
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'space-between',
+                                justifyContainer: 'space-between',
                                 padding: '1rem',
                                 background: 'rgba(15, 23, 42, 0.4)',
                                 borderRadius: '12px',
                                 border: '1px solid rgba(255, 255, 255, 0.05)'
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
                                 <div style={{
                                     padding: '0.5rem',
                                     borderRadius: '10px',
@@ -51,19 +51,38 @@ const TransactionList = ({ transactions, onDelete }) => {
                                 }}>
                                     {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
                                 </span>
-                                <button
-                                    onClick={() => onDelete(t.id)}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'var(--text-secondary)',
-                                        cursor: 'pointer',
-                                        padding: '0.25rem',
-                                        transition: 'color 0.2s'
-                                    }}
-                                >
-                                    <Trash2 size={16} className="delete-icon" /> {/* Add hover style in CSS if needed */}
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={() => onEdit(t)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--text-secondary)',
+                                            cursor: 'pointer',
+                                            padding: '0.25rem',
+                                            transition: 'color 0.2s'
+                                        }}
+                                        className="hover-blue"
+                                        title="Edit Transaction"
+                                    >
+                                        <Pencil size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => onDelete(t.id)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--text-secondary)',
+                                            cursor: 'pointer',
+                                            padding: '0.25rem',
+                                            transition: 'color 0.2s'
+                                        }}
+                                        className="hover-red"
+                                        title="Delete Transaction"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     ))}

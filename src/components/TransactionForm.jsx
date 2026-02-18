@@ -1,49 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ReceiptUpload from './ReceiptUpload';
 
 const CATEGORIES = ['Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Other'];
 
-const TransactionForm = () => {
-    const { addTransaction } = useApp();
+const categoryMap = {
+    'food': 'Food',
+    'transport': 'Transport',
+    'bills': 'Utilities',
+    'entertainment': 'Entertainment',
+    'health': 'Health',
+    'shopping': 'Shopping',
+    'other': 'Other',
+    'salary': 'Other'
+};
+
+const reverseCategoryMap = {
+    'Food': 'food',
+    'Transport': 'transport',
+    'Utilities': 'bills',
+    'Entertainment': 'entertainment',
+    'Health': 'health',
+    'Shopping': 'shopping',
+    'Other': 'other'
+};
+
+const TransactionForm = ({ editingTransaction, onCancel }) => {
+    const { addTransaction, updateTransaction } = useApp();
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
     const [type, setType] = useState('expense');
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [file, setFile] = useState(null);
 
+    // Populate form when editing
+    useEffect(() => {
+        if (editingTransaction) {
+            setDescription(editingTransaction.description);
+            setAmount(editingTransaction.amount.toString());
+            setType(editingTransaction.type);
+            setCategory(categoryMap[editingTransaction.category] || CATEGORIES[0]);
+        } else {
+            // Reset form
+            setDescription('');
+            setAmount('');
+            setType('expense');
+            setCategory(CATEGORIES[0]);
+        }
+    }, [editingTransaction]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!description || !amount) return;
 
-        // Map frontend categories to backend categories
-        const categoryMap = {
-            'Food': 'food',
-            'Transport': 'transport',
-            'Utilities': 'bills',
-            'Entertainment': 'entertainment',
-            'Health': 'health',
-            'Shopping': 'shopping',
-            'Other': 'other'
-        };
-
-        const newTransaction = {
+        const transactionData = {
             description,
             amount: parseFloat(amount),
-            type: type, // 'income' or 'expense'
-            category: type === 'expense' ? categoryMap[category] || 'other' : 'salary',
-            date: new Date().toISOString().split('T')[0], // Format: YYYY-MM-DD
+            type: type,
+            category: type === 'expense' ? reverseCategoryMap[category] || 'other' : 'salary',
+            date: editingTransaction ? editingTransaction.date : new Date().toISOString().split('T')[0],
         };
 
         try {
-            await addTransaction(newTransaction);
-            setDescription('');
-            setAmount('');
-            setFile(null);
+            if (editingTransaction) {
+                await updateTransaction(editingTransaction.id, transactionData);
+                onCancel(); // Reset editing state
+            } else {
+                await addTransaction(transactionData);
+            }
+
+            // Clear fields if not editing
+            if (!editingTransaction) {
+                setDescription('');
+                setAmount('');
+                setFile(null);
+            }
         } catch (error) {
-            console.error('Failed to add transaction:', error);
+            console.error('Failed to save transaction:', error);
         }
     };
 
@@ -54,15 +89,28 @@ const TransactionForm = () => {
             className="glass-panel"
             style={{ padding: '2rem', height: 'fit-content' }}
         >
-            <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Plus size={20} /> Add New
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {editingTransaction ? <Pencil size={20} color="var(--accent-blue)" /> : <Plus size={20} />}
+                    {editingTransaction ? 'Edit Transaction' : 'Add New'}
+                </h3>
+                {editingTransaction && (
+                    <button
+                        onClick={onCancel}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                    >
+                        <X size={20} />
+                    </button>
+                )}
+            </div>
+
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                 {/* Type Toggle */}
                 <div style={{ display: 'flex', background: 'rgba(15, 23, 42, 0.6)', padding: '0.25rem', borderRadius: '12px' }}>
                     <button
                         type="button"
+                        disabled={editingTransaction} // Optionally disable type change during edit
                         onClick={() => setType('expense')}
                         style={{
                             flex: 1,
@@ -71,15 +119,17 @@ const TransactionForm = () => {
                             border: 'none',
                             background: type === 'expense' ? 'var(--accent-red)' : 'transparent',
                             color: type === 'expense' ? 'white' : 'var(--text-secondary)',
-                            cursor: 'pointer',
+                            cursor: editingTransaction ? 'not-allowed' : 'pointer',
                             fontWeight: 500,
-                            transition: 'all 0.2s'
+                            transition: 'all 0.2s',
+                            opacity: editingTransaction && type !== 'expense' ? 0.5 : 1
                         }}
                     >
                         Expense
                     </button>
                     <button
                         type="button"
+                        disabled={editingTransaction}
                         onClick={() => setType('income')}
                         style={{
                             flex: 1,
@@ -88,9 +138,10 @@ const TransactionForm = () => {
                             border: 'none',
                             background: type === 'income' ? 'var(--accent-green)' : 'transparent',
                             color: type === 'income' ? 'white' : 'var(--text-secondary)',
-                            cursor: 'pointer',
+                            cursor: editingTransaction ? 'not-allowed' : 'pointer',
                             fontWeight: 500,
-                            transition: 'all 0.2s'
+                            transition: 'all 0.2s',
+                            opacity: editingTransaction && type !== 'income' ? 0.5 : 1
                         }}
                     >
                         Income
@@ -132,11 +183,27 @@ const TransactionForm = () => {
                     </div>
                 )}
 
-                <ReceiptUpload file={file} setFile={setFile} />
+                {!editingTransaction && <ReceiptUpload file={file} setFile={setFile} />}
 
-                <button type="submit" className="btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
-                    Add Transaction
-                </button>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                    {editingTransaction && (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="btn-secondary"
+                            style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)', cursor: 'pointer' }}
+                        >
+                            Cancel
+                        </button>
+                    )}
+                    <button
+                        type="submit"
+                        className="btn-primary"
+                        style={{ flex: 2, padding: '0.75rem' }}
+                    >
+                        {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
+                    </button>
+                </div>
 
             </form>
         </motion.div>

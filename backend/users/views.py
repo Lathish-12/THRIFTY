@@ -3,14 +3,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer
-from .models import Transaction, Badge, UserProfile
+from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer
+from .models import Transaction, Badge, UserProfile, Budget, Goal
 from rest_framework_simplejwt.tokens import RefreshToken
 import requests
 from jwt import decode as jwt_decode
 from jwt.exceptions import InvalidTokenError, DecodeError
 import os
-
+from django.core.mail import send_mail
+from django.conf import settings
 
 class GoogleLoginView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -180,6 +181,33 @@ class BadgeViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+class BudgetViewSet(viewsets.ModelViewSet):
+    serializer_class = BudgetSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Only return budgets for the current user
+        return Budget.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Automatically set the user when creating a budget
+        serializer.save(user=self.request.user)
+
+
+class GoalViewSet(viewsets.ModelViewSet):
+    serializer_class = GoalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Only return goals for the current user
+        return Goal.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Automatically set the user when creating a goal
+        serializer.save(user=self.request.user)
+
+
+
 class DeleteAccountView(APIView):
     """Allow authenticated users to delete their account and related data."""
     permission_classes = [permissions.IsAuthenticated]
@@ -197,14 +225,15 @@ class DeleteAccountView(APIView):
             return Response({'error': 'Failed to delete account.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class ClaudeAIView(APIView):
-    """AI Financial Advisor powered by Claude AI"""
+class AIAdvisorView(APIView):
+    """AI Financial Advisor powered by Google Gemini or Anthropic Claude"""
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         try:
-            import anthropic
             from decouple import config
+            import requests
+            import json
             
             # Get user message
             user_message = request.data.get('message', '')
@@ -228,7 +257,7 @@ class ClaudeAIView(APIView):
             
             top_categories = sorted(category_summary.items(), key=lambda x: x[1], reverse=True)[:5]
             
-            # Build context for Claude
+            # Build context for AI
             financial_context = f"""
 User's Financial Summary:
 - Total Transactions: {transactions.count()}
@@ -243,26 +272,11 @@ Recent Transactions (last 5):
 {chr(10).join([f"- {t.description}: ₹{t.amount} ({t.category}, {t.date})" for t in transactions.order_by('-date')[:5]])}
 """
             
-            # Get API key
-            api_key = config('ANTHROPIC_API_KEY', default=None)
+            # Get API keys
+            gemini_key = config('GEMINI_API_KEY', default=None)
+            claude_key = config('ANTHROPIC_API_KEY', default=None)
             
-            if not api_key or api_key == 'your-claude-api-key-here':
-                # Fallback to smart mock responses if no API key
-                return self._generate_mock_response(user_message, {
-                    'total_expense': total_expense,
-                    'total_income': total_income,
-                    'categories': top_categories,
-                    'transaction_count': transactions.count()
-                })
-            
-            # Initialize Claude client
-            client = anthropic.Anthropic(api_key=api_key)
-            
-            # Create message with Claude
-            message = client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1024,
-                system=f"""You are Thrifty AI, an expert financial advisor integrated into a personal finance app. 
+            system_prompt = f"""You are Thrifty AI, an expert financial advisor integrated into a personal finance app. 
 You provide personalized financial advice based on the user's actual transaction data.
 
 {financial_context}
@@ -277,55 +291,194 @@ Guidelines:
 - When appropriate, suggest concrete next steps
 - Be honest about limitations and encourage professional advice for complex situations
 
-Your goal is to help users understand their finances better and make smarter money decisions.""",
-                messages=[
-                    {"role": "user", "content": user_message}
-                ]
-            )
-            
-            # Extract response
-            response_text = message.content[0].text
-            
-            return Response({
-                'response': response_text,
-                'type': 'text',
-                'powered_by': 'claude-3.5-sonnet'
+Your goal is to help users understand their finances better and make smarter money decisions."""
+
+            # 1. Try Gemini Integration
+            if gemini_key and gemini_key != 'your-gemini-api-key-here':
+                try:
+                    import google.generativeai as genai
+                    genai.configure(api_key=gemini_key)
+                    model = genai.GenerativeModel('gemini-flash-latest')
+                    
+                    full_prompt = f"{system_prompt}\n\nUser Question: {user_message}"
+                    response = model.generate_content(full_prompt)
+                    
+                    return Response({
+                        'response': response.text,
+                        'type': 'text',
+                        'powered_by': 'Google Gemini'
+                    })
+                except Exception as g_err:
+                    print(f"Gemini error, trying Claude: {g_err}")
+
+            # 2. Try Claude / OpenRouter if Gemini fails or is missing
+            if claude_key and claude_key != 'your-claude-api-key-here':
+                # Detect if it's an OpenRouter key
+                if claude_key.startswith('sk-or-'):
+                    response = requests.post(
+                        url="https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {claude_key}",
+                            "Content-Type": "application/json"
+                        },
+                        data=json.dumps({
+                            "model": "anthropic/claude-3.5-sonnet",
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_message}
+                            ]
+                        })
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        response_text = data['choices'][0]['message']['content']
+                        return Response({
+                            'response': response_text,
+                            'type': 'text',
+                            'powered_by': 'claude-3.5-sonnet (via OpenRouter)'
+                        })
+                
+                else:
+                    # Direct Anthropic API
+                    import anthropic
+                    client = anthropic.Anthropic(api_key=claude_key)
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20241022",
+                        max_tokens=1024,
+                        system=system_prompt,
+                        messages=[{"role": "user", "content": user_message}]
+                    )
+                    return Response({
+                        'response': message.content[0].text,
+                        'type': 'text',
+                        'powered_by': 'claude-3.5-sonnet'
+                    })
+
+            # 3. Final Fallback to Smart Data Analysis
+            return self._generate_mock_response(user_message, {
+                'total_expense': total_expense,
+                'total_income': total_income,
+                'categories': top_categories,
+                'transaction_count': transactions.count()
             })
+
             
         except Exception as e:
-            print(f"Claude AI Error: {e}")
-            # Fallback to mock response on error
+            print(f"AI Advisor Error: {e}")
+            # Fallback to smart mock response on error
             return self._generate_mock_response(
                 user_message,
                 {
-                    'total_expense': 0,
-                    'total_income': 0,
-                    'categories': [],
-                    'transaction_count': 0
+                    'total_expense': total_expense,
+                    'total_income': total_income,
+                    'categories': top_categories,
+                    'transaction_count': transactions.count()
                 }
             )
+
     
     def _generate_mock_response(self, query, insights):
-        """Fallback mock responses when Claude API is not available"""
-        lowerQuery = query.lower()
+        """Fallback intelligence that provides real advice based on data even without AI"""
+        query_l = query.lower()
         
-        if 'spending' in lowerQuery or 'expense' in lowerQuery:
-            return Response({
-                'response': f"You've spent **₹{insights['total_expense']:.0f}** in total. To get more detailed AI-powered insights, please add your Claude API key to the backend .env file.",
-                'type': 'text',
-                'powered_by': 'fallback'
-            })
+        # Extract data for easier access
+        expense = insights['total_expense']
+        income = insights['total_income']
+        balance = income - expense
+        categories = dict(insights['categories'])
+        count = insights['transaction_count']
+
+        response = ""
         
-        if 'save' in lowerQuery or 'saving' in lowerQuery:
-            return Response({
-                'response': "💡 **Smart Saving Tips:**\n\n1. Track every expense\n2. Follow the 50/30/20 rule\n3. Automate your savings\n\n*For AI-powered personalized advice, add your Claude API key.*",
-                'type': 'text',
-                'powered_by': 'fallback'
-            })
+        if 'investment' in query_l or 'invest' in query_l:
+            if balance > 0:
+                response = f"Based on your current surplus of **₹{balance:.2f}**, you're in a great position to start investing! 📈\n\n**My Recommendations:**\n1. Consider a **Fixed Deposit (FD)** for safety.\n2. Look into **Mutual Funds** for long-term growth.\n3. Keep an emergency fund of at least 3 months of expenses."
+            else:
+                response = "I noticed your balance is currently tight. Before investing, I recommend focusing on building an **emergency fund** and reducing any high-interest debt. 🛡️"
         
+        elif 'budget' in query_l or 'plan' in query_l:
+            response = "Let's create a **50/30/20 Budget Plan** for you: 📋\n\n"
+            response += f"1. **Needs (50%):** ₹{income * 0.5:.2f} (Rent, Bills)\n"
+            response += f"2. **Wants (30%):** ₹{income * 0.3:.2f} (Dining, Leisure)\n"
+            response += f"3. **Savings (20%):** ₹{income * 0.2:.2f} (Future self)\n\n"
+            if expense > (income * 0.8):
+                response += "⚠️ **Alert:** Your current spending is higher than typical guidelines. Let's try to cut back on discretionary categories."
+        
+        elif 'spending' in query_l or 'expense' in query_l or 'habits' in query_l:
+            response = f"You've tracked **{count}** transactions with a total spend of **₹{expense:.2f}**. 📊\n\n"
+            if categories:
+                top_cat = list(categories.keys())[0]
+                response += f"Your top spending category is **{top_cat}** (₹{categories[top_cat]:.2f}). "
+                response += f"Try to reduce {top_cat} spending by **10%** next month to save ₹{categories[top_cat] * 0.1:.2f}."
+            else:
+                response += "You haven't categorized your expenses yet. Categorizing helps me give you better advice!"
+        
+        else:
+            # General helpful response
+            if count == 0:
+                response = "I'm ready to help! Start by adding your first transaction in the **Transactions** tab so I can analyze your finances. 🚀"
+            else:
+                response = f"I've analyzed your **{count}** transactions. Your current net flow is **{'+' if balance >= 0 else ''}₹{balance:.2f}**. 💰\n\nHow can I help you today? You can ask about:\n- \"How is my spending looking?\"\n- \"Can you suggest an investment?\"\n- \"Create a budget plan for me.\""
+
         return Response({
-            'response': f"I can help you with financial insights! However, for the best AI-powered experience, please add your Claude API key to the backend .env file.\n\nYour current stats:\n- **{insights['transaction_count']}** transactions tracked\n- **₹{insights['total_expense']:.0f}** in expenses\n\nTry asking about budgets, savings, or spending patterns!",
+            'response': response,
             'type': 'text',
-            'powered_by': 'fallback'
+            'powered_by': 'thrifty-local-analyzer'
         })
+
+
+class SupportRequestView(APIView):
+    """Handle customer support requests and send emails to admin"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            user = request.user
+            message = request.data.get('message', '')
+            request_type = request.data.get('type', 'change_request') # Change Request or General Inquiry
+
+            if not message:
+                return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Prepare email content
+            subject = f"Thrifty Support: {request_type} from {user.username}"
+            email_body = f"""
+            New Support Request from Thrifty App:
+            
+            User: {user.first_name} {user.last_name} ({user.email})
+            Username: {user.username}
+            Type: {request_type}
+            
+            Message:
+            {message}
+            
+            ---
+            Sent from Thrifty Backend
+            """
+
+            # Send Email
+            try:
+                # We use fail_silently=False during development to catch errors
+                send_mail(
+                    subject,
+                    email_body,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [settings.SUPPORT_EMAIL],
+                    fail_silently=False,
+                )
+                email_sent = True
+            except Exception as mail_err:
+                print(f"Email delivery failed: {mail_err}")
+                email_sent = False
+
+            return Response({
+                'detail': 'Support request submitted successfully!',
+                'email_sent': email_sent
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"Support Request Error: {e}")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 

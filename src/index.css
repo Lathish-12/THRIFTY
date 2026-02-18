@@ -218,3 +218,13 @@ h6 {
   --card-bg: rgba(255, 255, 255, 0.85);
   --glass-border: rgba(16, 24, 39, 0.06);
 }
+
+.hover-blue:hover {
+  color: var(--accent-blue) !important;
+  transform: scale(1.1);
+}
+
+.hover-red:hover {
+  color: var(--accent-red) !important;
+  transform: scale(1.1);
+}
