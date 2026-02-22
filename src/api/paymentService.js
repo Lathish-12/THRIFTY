@@ -12,17 +12,17 @@ const PaymentService = {
         }
     },
 
-    // Handle payment success (Simulated Webhook Call)
-    simulateSuccess: async (orderId, paymentId) => {
+    // Verify payment signature with backend (Step 4 & 5)
+    verifyPayment: async (orderId, paymentId, signature) => {
         try {
-            const response = await api.post('/users/payments/webhook/', {
-                order_id: orderId,
-                payment_id: paymentId,
-                success: true
+            const response = await api.post('/users/payments/verify/', {
+                razorpay_order_id: orderId,
+                razorpay_payment_id: paymentId,
+                razorpay_signature: signature
             });
             return response.data;
         } catch (error) {
-            console.error('Error simulating success:', error);
+            console.error('Error verifying payment:', error);
             throw error;
         }
     },

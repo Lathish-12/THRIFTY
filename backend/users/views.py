@@ -500,7 +500,8 @@ class PaymentCreateView(APIView):
             razorpay_data = {
                 "amount": int(float(amount) * 100),
                 "currency": "INR",
-                "receipt": f"receipt_{uuid.uuid4().hex[:10]}"
+                "receipt": f"receipt_{uuid.uuid4().hex[:10]}",
+                "payment_capture": 1
             }
             
             razorpay_order = client.order.create(data=razorpay_data)
@@ -524,64 +525,70 @@ class PaymentCreateView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class PaymentWebhookView(APIView):
-    """Simulated Webhook Handler for Payment Confirmation"""
-    permission_classes = [permissions.AllowAny]
+class PaymentVerifyView(APIView):
+    """Verify Razorpay payment signature (Step 4 & 5)"""
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         try:
-            order_id = request.data.get('order_id')
-            success = request.data.get('success', False)
-            payment_id = request.data.get('payment_id', f"pay_{uuid.uuid4().hex[:12]}")
+            order_id = request.data.get('razorpay_order_id')
+            payment_id = request.data.get('razorpay_payment_id')
+            signature = request.data.get('razorpay_signature')
+
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
             
+            # Verify Signature
+            params_dict = {
+                'razorpay_order_id': order_id,
+                'razorpay_payment_id': payment_id,
+                'razorpay_signature': signature
+            }
+            
+            try:
+                client.utility.verify_payment_signature(params_dict)
+            except Exception:
+                return Response({'error': 'Invalid payment signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Update Payment status
             payment = Payment.objects.get(order_id=order_id)
-            
-            if success:
-                payment.status = 'success'
-                payment.payment_id = payment_id
-                payment.save()
-                
-                # Auto-create budget/wallet transaction on success
-                Transaction.objects.create(
-                    user=payment.user,
-                    type='income',
-                    category='other',
-                    amount=payment.amount,
-                    description=f"UPI Deposit Ref: {payment_id}",
-                    date=payment.created_at.date(),
-                    payment_method='upi'
+            payment.status = 'success'
+            payment.payment_id = payment_id
+            payment.save()
+
+            # Create Transaction
+            Transaction.objects.create(
+                user=payment.user,
+                type='income',
+                category='other',
+                amount=payment.amount,
+                description=f"UPI Deposit Ref: {payment_id}",
+                date=payment.created_at.date(),
+                payment_method='upi'
+            )
+
+            # Update Profile
+            profile = payment.user.profile
+            profile.points += 50
+            profile.save()
+            profile.check_level_up
+
+            # Notification
+            try:
+                send_mail(
+                    'Payment Verified! Thrifty Wallet Updated',
+                    f"Hi {payment.user.username}, your payment of ₹{payment.amount} (ID: {payment_id}) has been verified and added to your wallet.",
+                    settings.DEFAULT_FROM_EMAIL,
+                    [payment.user.email],
+                    fail_silently=True,
                 )
-                
-                # Bonus: Add points for depositing
-                profile = payment.user.profile
-                profile.points += 50
-                profile.save()
-                profile.check_level_up
-                
-                # Step 5: Trigger Notification (Email)
-                try:
-                    send_mail(
-                        'Payment Successful: Thrifty Wallet Updated',
-                        f"Hello {payment.user.username},\n\nYour payment of ₹{payment.amount} (ID: {payment_id}) was successfully reconciled and added to your Thrifty wallet.\n\nTransaction Type: UPI\nRef: {payment.order_id}\n\nThank you for using Thrifty!",
-                        settings.DEFAULT_FROM_EMAIL,
-                        [payment.user.email],
-                        fail_silently=True,
-                    )
-                except Exception as e:
-                    print(f"Notification error: {e}")
+            except: pass
 
-                return Response({'status': 'Payment successful, Wallet updated and Notification triggered'})
+            return Response({'status': 'verified', 'detail': 'Wallet updated successfully'})
 
-            else:
-                payment.status = 'failed'
-                payment.save()
-                return Response({'status': 'Payment failed'})
-                
         except Payment.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     """View history of UPI/Gateway transactions"""

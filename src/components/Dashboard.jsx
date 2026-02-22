@@ -37,11 +37,15 @@ const Dashboard = ({ transactions }) => {
                     toast.success("Payment Captured! Reconciling...");
                     try {
                         //architecture: Step 4 & 5 (Sync with backend)
-                        await PaymentService.simulateSuccess(order.order_id, response.razorpay_payment_id);
+                        await PaymentService.verifyPayment(
+                            order.order_id,
+                            response.razorpay_payment_id,
+                            response.razorpay_signature
+                        );
                         await fetchUserData();
                         toast.success("Wallet Updated Successfully!");
                     } catch (err) {
-                        toast.error("Reconciliation failed. Please contact support.");
+                        toast.error("Verification failed. Please contact support.");
                     }
                 },
                 prefill: {

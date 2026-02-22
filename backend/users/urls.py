@@ -8,7 +8,7 @@ from .views import (
     RegisterView, MeView, GoogleLoginView, UserProfileView, 
     TransactionViewSet, BadgeViewSet, DeleteAccountView, 
     AIAdvisorView, BudgetViewSet, GoalViewSet, SupportRequestView,
-    PaymentViewSet, PaymentCreateView, PaymentWebhookView
+    PaymentViewSet, PaymentCreateView, PaymentVerifyView
 )
 
 # Create a router and register viewsets
@@ -30,7 +30,7 @@ urlpatterns = [
     path('ai/chat/', AIAdvisorView.as_view(), name='ai_chat'),
     path('support/', SupportRequestView.as_view(), name='support_request'),
     path('payments/create/', PaymentCreateView.as_view(), name='payment_create'),
-    path('payments/webhook/', PaymentWebhookView.as_view(), name='payment_webhook'),
+    path('payments/verify/', PaymentVerifyView.as_view(), name='payment_verify'),
     path('', include(router.urls)),  # Include router URLs
 ]
 
