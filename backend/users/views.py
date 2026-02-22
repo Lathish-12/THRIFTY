@@ -483,6 +483,47 @@ class SupportRequestView(APIView):
 
 import uuid
 
+def finalize_payment(payment, payment_id):
+    """Refactored logic to finalize a successful payment and update user state"""
+    if payment.status == 'success':
+        return False # Already processed
+        
+    payment.status = 'success'
+    payment.payment_id = payment_id
+    payment.save()
+
+    # Create Wallet Transaction
+    Transaction.objects.get_or_create(
+        payment_id_tracking=payment_id, # Need to add this field or use description
+        defaults={
+            'user': payment.user,
+            'type': 'income',
+            'category': 'other',
+            'amount': payment.amount,
+            'description': f"UPI Deposit Ref: {payment_id}",
+            'date': payment.created_at.date(),
+            'payment_method': 'upi'
+        }
+    )
+
+    # Update Points & Level
+    profile = payment.user.profile
+    profile.points += 50
+    profile.save()
+    profile.check_level_up
+
+    # Send Notification
+    try:
+        send_mail(
+            'Payment Successful: Thrifty Wallet Updated',
+            f"Hi {payment.user.username}, your payment of ₹{payment.amount} (ID: {payment_id}) was successfully processed.",
+            settings.DEFAULT_FROM_EMAIL,
+            [payment.user.email],
+            fail_silently=True,
+        )
+    except: pass
+    return True
+
 class PaymentCreateView(APIView):
     """Create a new payment order (Simulated/Gateway)"""
     permission_classes = [permissions.IsAuthenticated]
@@ -549,46 +590,52 @@ class PaymentVerifyView(APIView):
             except Exception:
                 return Response({'error': 'Invalid payment signature'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Update Payment status
+            # Update Payment status & Wallet
             payment = Payment.objects.get(order_id=order_id)
-            payment.status = 'success'
-            payment.payment_id = payment_id
-            payment.save()
+            finalized = finalize_payment(payment, payment_id)
+            
+            if finalized:
+                return Response({'status': 'verified', 'detail': 'Wallet updated successfully'})
+            else:
+                return Response({'status': 'already_processed', 'detail': 'Payment already accounted for'})
 
-            # Create Transaction
-            Transaction.objects.create(
-                user=payment.user,
-                type='income',
-                category='other',
-                amount=payment.amount,
-                description=f"UPI Deposit Ref: {payment_id}",
-                date=payment.created_at.date(),
-                payment_method='upi'
-            )
-
-            # Update Profile
-            profile = payment.user.profile
-            profile.points += 50
-            profile.save()
-            profile.check_level_up
-
-            # Notification
-            try:
-                send_mail(
-                    'Payment Verified! Thrifty Wallet Updated',
-                    f"Hi {payment.user.username}, your payment of ₹{payment.amount} (ID: {payment_id}) has been verified and added to your wallet.",
-                    settings.DEFAULT_FROM_EMAIL,
-                    [payment.user.email],
-                    fail_silently=True,
-                )
-            except: pass
-
-            return Response({'status': 'verified', 'detail': 'Wallet updated successfully'})
-
-        except Payment.DoesNotExist:
-            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RazorpayWebhookView(APIView):
+    """Production-grade Webhook Handler (Step 4)"""
+    permission_classes = [permissions.AllowAny] # Gateway needs access
+
+    def post(self, request):
+        webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
+        webhook_signature = request.headers.get('X-Razorpay-Signature')
+        webhook_body = request.body.decode('utf-8')
+
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        
+        try:
+            client.utility.verify_webhook_signature(webhook_body, webhook_signature, webhook_secret)
+        except Exception:
+            return Response({'error': 'Invalid webhook signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parse event
+        import json
+        data = json.loads(webhook_body)
+        event = data.get('event')
+
+        if event == "payment.captured":
+            payment_entity = data['payload']['payment']['entity']
+            order_id = payment_entity['order_id']
+            payment_id = payment_entity['id']
+            
+            try:
+                payment = Payment.objects.get(order_id=order_id)
+                finalize_payment(payment, payment_id)
+            except Payment.DoesNotExist:
+                # Might be an order not created in our DB
+                pass
+
+        return Response({'status': 'ok'}, status=status.HTTP_200_OK)
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     """View history of UPI/Gateway transactions"""

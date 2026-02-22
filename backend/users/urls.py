@@ -8,7 +8,7 @@ from .views import (
     RegisterView, MeView, GoogleLoginView, UserProfileView, 
     TransactionViewSet, BadgeViewSet, DeleteAccountView, 
     AIAdvisorView, BudgetViewSet, GoalViewSet, SupportRequestView,
-    PaymentViewSet, PaymentCreateView, PaymentVerifyView
+    PaymentViewSet, PaymentCreateView, PaymentVerifyView, RazorpayWebhookView
 )
 
 # Create a router and register viewsets
@@ -31,6 +31,7 @@ urlpatterns = [
     path('support/', SupportRequestView.as_view(), name='support_request'),
     path('payments/create/', PaymentCreateView.as_view(), name='payment_create'),
     path('payments/verify/', PaymentVerifyView.as_view(), name='payment_verify'),
+    path('payments/webhook/', RazorpayWebhookView.as_view(), name='payment_webhook'),
     path('', include(router.urls)),  # Include router URLs
 ]
 

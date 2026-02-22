@@ -77,6 +77,7 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.CharField(max_length=255)
     source_message = models.TextField(blank=True, null=True, help_text="Original SMS or notification content")
+    payment_id_tracking = models.CharField(max_length=100, blank=True, null=True, unique=True, help_text="Razorpay/Gateway Payment ID for tracking")
     date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
