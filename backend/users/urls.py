@@ -8,7 +8,8 @@ from .views import (
     RegisterView, MeView, GoogleLoginView, UserProfileView, 
     TransactionViewSet, BadgeViewSet, DeleteAccountView, 
     AIAdvisorView, BudgetViewSet, GoalViewSet, SupportRequestView,
-    PaymentViewSet, PaymentCreateView, PaymentVerifyView, RazorpayWebhookView
+    PaymentViewSet, PaymentCreateView, PaymentVerifyView, RazorpayWebhookView,
+    NotificationViewSet
 )
 
 # Create a router and register viewsets
@@ -18,6 +19,7 @@ router.register(r'badges', BadgeViewSet, basename='badge')
 router.register(r'budgets', BudgetViewSet, basename='budget')
 router.register(r'goals', GoalViewSet, basename='goal')
 router.register(r'payments', PaymentViewSet, basename='payment')
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),

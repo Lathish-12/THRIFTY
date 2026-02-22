@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Transaction, Badge, Budget, Goal, Payment
+from .models import UserProfile, Transaction, Badge, Budget, Goal, Payment, Notification
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -102,3 +102,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_at', 'updated_at']
 
 
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'message', 'is_read', 'created_at']
+        read_only_fields = ['created_at']

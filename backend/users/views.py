@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer, PaymentSerializer
-from .models import Transaction, Badge, UserProfile, Budget, Goal, Payment
+from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer, PaymentSerializer, NotificationSerializer
+from .models import Transaction, Badge, UserProfile, Budget, Goal, Payment, Notification
 from rest_framework_simplejwt.tokens import RefreshToken
 import requests
 from jwt import decode as jwt_decode
@@ -512,11 +512,22 @@ def finalize_payment(payment, payment_id):
     profile.save()
     profile.check_level_up
 
-    # Send Notification
+    # Send Notifications (Step 5)
+    # 1. In-App Notification
+    Notification.objects.create(
+        user=payment.user,
+        title="Payment Successful! 💰",
+        message=f"₹{payment.amount} has been added to your wallet. Ref: {payment_id}"
+    )
+
+    # 2. Email Notification
     try:
+        subject = 'Payment Successful: Thrifty Wallet Updated'
+        message = f"Hi {payment.user.username},\n\nYour payment of ₹{payment.amount} (ID: {payment_id}) was successfully processed and added to your Thrifty wallet.\n\nTransaction Details:\n- Amount: ₹{payment.amount}\n- Ref: {payment_id}\n- Date: {payment.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n\nThank you for using Thrifty!"
+        
         send_mail(
-            'Payment Successful: Thrifty Wallet Updated',
-            f"Hi {payment.user.username}, your payment of ₹{payment.amount} (ID: {payment_id}) was successfully processed.",
+            subject,
+            message,
             settings.DEFAULT_FROM_EMAIL,
             [payment.user.email],
             fail_silently=True,
@@ -644,6 +655,27 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return Payment.objects.filter(user=self.request.user).order_by('-created_at')
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """ViewSet for handling user notifications"""
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({'status': 'notification marked as read'})
+
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        self.get_queryset().update(is_read=True)
+        return Response({'status': 'all notifications marked as read'})
 
 
 
