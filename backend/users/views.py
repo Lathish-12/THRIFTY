@@ -643,9 +643,16 @@ class RazorpayWebhookView(APIView):
             
             try:
                 payment = Payment.objects.get(order_id=order_id)
+                
+                # Security: Validate amount (Gateway amount is in paise)
+                gateway_amount = payment_entity['amount'] / 100
+                if float(gateway_amount) != float(payment.amount):
+                    payment.status = 'failed'
+                    payment.save()
+                    return Response({'error': 'Amount mismatch'}, status=status.HTTP_400_BAD_REQUEST)
+                
                 finalize_payment(payment, payment_id)
             except Payment.DoesNotExist:
-                # Might be an order not created in our DB
                 pass
 
         return Response({'status': 'ok'}, status=status.HTTP_200_OK)

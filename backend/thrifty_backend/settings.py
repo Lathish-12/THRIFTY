@@ -27,7 +27,7 @@ SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-u0!4td^-r*hb$)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.loca.lt', cast=Csv())
+ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
@@ -90,10 +90,7 @@ import dj_database_url
 
 # Use PostgreSQL in production (via DATABASE_URL), SQLite in development
 DATABASES = {
-    'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
-        conn_max_age=600
-    )
+    'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'))
 }
 
 
