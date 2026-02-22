@@ -10,4 +10,7 @@ export default defineConfig({
     host: true,
     allowedHosts: ['.ngrok-free.dev', '.ngrok.io', '.trycloudflare.com'],
   },
+  build: {
+    chunkSizeWarningLimit: 2000,
+  },
 })
