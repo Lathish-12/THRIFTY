@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
@@ -12,21 +12,16 @@ import SettingsPage from './pages/SettingsPage';
 import BudgetPage from './pages/BudgetPage';
 import GoalsPage from './pages/GoalsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import MetalsPage from './pages/MetalsPage';
+import CryptoPage from './pages/CryptoPage';
 import CustomerSupport from './components/CustomerSupport';
 import { AppProvider, useApp } from './context/AppContext';
 import { ToastContainer } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'react-toastify/dist/ReactToastify.css';
 import ProfileModal from './components/ProfileModal';
-import { User, Search } from 'lucide-react';
-import { useState } from 'react';
-
-// Loading component
-const LoadingFallback = () => (
-  <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white' }}>
-    Loading...
-  </div>
-);
+import UPIGenerator from './components/UPIGenerator';
+import { User, Search, QrCode } from 'lucide-react';
 
 // Error Boundary
 class ErrorBoundary extends React.Component {
@@ -46,9 +41,15 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white', flexDirection: 'column' }}>
-          <h1>Something went wrong</h1>
-          <p>{this.state.error?.message}</p>
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white', flexDirection: 'column', padding: '2rem', textAlign: 'center' }}>
+          <h1 className="text-gradient">Something went wrong</h1>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>{this.state.error?.message}</p>
+          <button
+            onClick={() => window.location.href = '/'}
+            style={{ marginTop: '2rem', padding: '0.8rem 1.5rem', background: 'var(--accent-blue)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+          >
+            Back to Home
+          </button>
         </div>
       );
     }
@@ -57,8 +58,9 @@ class ErrorBoundary extends React.Component {
 }
 
 const Layout = ({ children }) => {
-  const { user } = useApp();
+  const { user, currency, toggleCurrency } = useApp();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isUPIOpen, setIsUPIOpen] = useState(false);
 
   // Search Logic
   const navigate = useNavigate();
@@ -71,11 +73,11 @@ const Layout = ({ children }) => {
     { name: 'Smart Budgets', path: '/budgets' },
     { name: 'Financial Goals', path: '/goals' },
     { name: 'Analytics & Insights', path: '/analytics' },
+    { name: 'Precious Metals Tracking', path: '/metals' },
+    { name: 'Crypto Assets Tracking', path: '/crypto' },
     { name: 'AI Advisor', path: '/advisor' },
     { name: 'Account Settings', path: '/settings' },
   ];
-
-
 
   const filteredItems = SEARCH_ITEMS.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -104,9 +106,9 @@ const Layout = ({ children }) => {
         left: 0,
         right: 0,
         height: '60px',
-        padding: '0 1rem', // Reduced padding for mobile default
-        display: 'flex',
-        justifyContent: 'space-between',
+        padding: '0 1.5rem',
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
         alignItems: 'center',
         background: 'rgba(15, 23, 42, 0.9)',
         backdropFilter: 'blur(10px)',
@@ -120,26 +122,29 @@ const Layout = ({ children }) => {
             borderRadius: '8px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'white', fontWeight: 'bold',
-            boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)'
+            boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+            flexShrink: 0
           }}>T</div>
-          <span className="desktop-only" style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 500, marginLeft: '0.5rem' }}>{pageTitle}</span>
+          <span className="desktop-only" style={{
+            fontSize: '1.1rem',
+            color: 'var(--text-primary)',
+            fontWeight: 500,
+            marginLeft: '0.5rem',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: '150px'
+          }}>{pageTitle}</span>
         </div>
 
-        {/* Centered Title - Visible on Desktop, condensed on mobile */}
-        <div style={{
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          pointerEvents: 'none'
-        }}>
+        <div className="desktop-only" style={{ textAlign: 'center' }}>
           <h1 className="text-gradient" style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700' }}>Thrifty</h1>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* Search Bar - Hidden on Mobile */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'flex-end' }}>
           <div className="desktop-only" style={{
             position: 'relative',
-            width: '240px',
+            width: 'clamp(150px, 20vw, 240px)',
             display: 'flex',
             alignItems: 'center',
             zIndex: 1001
@@ -224,6 +229,51 @@ const Layout = ({ children }) => {
             </AnimatePresence>
           </div>
 
+          <button
+            onClick={() => setIsUPIOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: '8px',
+              padding: '0.4rem 0.8rem',
+              color: '#60a5fa',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              marginRight: '0.5rem',
+              fontWeight: 500
+            }}
+            title="Receive Money (UPI)"
+          >
+            <QrCode size={18} />
+            <span className="desktop-only">Receive</span>
+          </button>
+
+          <button
+            onClick={toggleCurrency}
+            className="desktop-only"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '8px',
+              padding: '0.4rem 0.8rem',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              marginRight: '1rem'
+            }}
+            title="Toggle Currency"
+          >
+            <span style={{ opacity: 0.7 }}>{currency === 'INR' ? '₹' : '$'}</span>
+            {currency}
+          </button>
+
           <span className="desktop-only" style={{ color: 'var(--text-secondary)' }}>Welcome, {user?.name || 'User'}</span>
 
           <button
@@ -262,10 +312,11 @@ const Layout = ({ children }) => {
       </header>
 
       <main style={{ flex: 1, padding: '1.5rem', paddingTop: '80px', paddingBottom: '90px', maxWidth: '1400px', margin: '0 auto', width: '100%', overflowX: 'hidden' }}>
-
+        <AnimatePresence>
+          {isUPIOpen && <UPIGenerator onClose={() => setIsUPIOpen(false)} />}
+        </AnimatePresence>
         <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
-
-        <AnimatePresence mode='wait'>
+        <AnimatePresence mode="wait">
           {children}
         </AnimatePresence>
       </main>
@@ -276,27 +327,15 @@ const Layout = ({ children }) => {
 
 const ProtectedRoute = ({ children }) => {
   const { user, authLoading } = useApp();
-
-  if (authLoading) {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>Loading...</div>;
-  }
-
-  if (!user.isAuthenticated) {
-    return <Navigate to="/welcome" replace />;
-  }
+  if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>Loading...</div>;
+  if (!user.isAuthenticated) return <Navigate to="/welcome" replace />;
   return <Layout>{children}</Layout>;
 };
 
 const PublicRoute = ({ children }) => {
   const { user, authLoading } = useApp();
-
-  if (authLoading) {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>Loading...</div>;
-  }
-
-  if (user.isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
+  if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>Loading...</div>;
+  if (user.isAuthenticated) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -304,18 +343,9 @@ const AppRoutes = () => {
   const location = useLocation();
   const { authLoading } = useApp();
 
-  // Show loading while checking auth
   if (authLoading) {
     return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-primary)',
-        color: 'white',
-        fontSize: '18px'
-      }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white', fontSize: '18px' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ marginBottom: '1rem' }}>Loading Thrifty...</div>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Initializing your financial dashboard</div>
@@ -326,22 +356,20 @@ const AppRoutes = () => {
 
   return (
     <Routes key={location.pathname} location={location}>
-      {/* Public Routes */}
       <Route path="/welcome" element={<PublicRoute><WelcomePage /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
-      {/* Protected Routes */}
       <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
       <Route path="/budgets" element={<ProtectedRoute><BudgetPage /></ProtectedRoute>} />
       <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+      <Route path="/metals" element={<ProtectedRoute><MetalsPage /></ProtectedRoute>} />
+      <Route path="/crypto" element={<ProtectedRoute><CryptoPage /></ProtectedRoute>} />
       <Route path="/advisor" element={<ProtectedRoute><Advisor /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-
-      {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

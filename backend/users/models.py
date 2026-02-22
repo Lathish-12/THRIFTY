@@ -7,8 +7,34 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     points = models.IntegerField(default=0)
+    level = models.IntegerField(default=1)
+    upi_id = models.CharField(max_length=50, blank=True, null=True, help_text="Your UPI VPA")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def check_level_up(self):
+        """Logic to calculate level based on points"""
+        # Level 1: 0-100
+        # Level 2: 101-300
+        # Level 3: 301-600
+        # Level 4: 601-1000
+        # Level 5: 1000+
+        new_level = 1
+        if self.points > 1000:
+            new_level = 5
+        elif self.points > 600:
+            new_level = 4
+        elif self.points > 300:
+            new_level = 3
+        elif self.points > 100:
+            new_level = 2
+        
+        if new_level > self.level:
+            self.level = new_level
+            self.save()
+            return True # Leveled up
+        return False
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
@@ -37,9 +63,20 @@ class Transaction(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
     type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    
+    PAYMENT_METHODS = [
+        ('cash', 'Cash'),
+        ('card', 'Card'),
+        ('upi', 'UPI'),
+        ('net_banking', 'Net Banking'),
+        ('other', 'Other')
+    ]
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='upi')
+    
     category = models.CharField(max_length=20, choices=CATEGORIES)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.CharField(max_length=255)
+    source_message = models.TextField(blank=True, null=True, help_text="Original SMS or notification content")
     date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -108,3 +145,25 @@ class Goal(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.name} - ₹{self.target_amount}"
+
+
+class Payment(models.Model):
+    """Payment model to track UPI/Gateway transactions"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
+    order_id = models.CharField(max_length=100, unique=True, help_text="Gateway Order ID")
+    payment_id = models.CharField(max_length=100, blank=True, null=True, help_text="Gateway Payment ID")
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    provider = models.CharField(max_length=50, default='razorpay')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.status} - ₹{self.amount}"
+

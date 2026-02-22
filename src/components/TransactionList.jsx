@@ -1,9 +1,24 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, TrendingUp, TrendingDown, Pencil } from 'lucide-react';
-import { formatCurrency, formatDate } from '../utils';
+import { Trash2, TrendingUp, TrendingDown, Pencil, Info } from 'lucide-react';
+import { formatDate } from '../utils';
+import { useApp } from '../context/AppContext';
 
 const TransactionList = ({ transactions, onDelete, onEdit }) => {
+    const { formatCurrency } = useApp();
+    const [selectedMsg, setSelectedMsg] = React.useState(null);
+
+    const getMethodLabel = (method) => {
+        const map = {
+            'upi': 'UPI',
+            'cash': 'Cash',
+            'card': 'Card',
+            'net_banking': 'Net Banking',
+            'other': 'Other'
+        };
+        return map[method] || method || 'Other';
+    };
+
     return (
         <div className="glass-panel" style={{ padding: '2rem', height: '100%' }}>
             <h3 style={{ marginBottom: '1.5rem' }}>Recent History</h3>
@@ -20,11 +35,12 @@ const TransactionList = ({ transactions, onDelete, onEdit }) => {
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContainer: 'space-between',
+                                justifyContent: 'space-between',
                                 padding: '1rem',
                                 background: 'rgba(15, 23, 42, 0.4)',
                                 borderRadius: '12px',
-                                border: '1px solid rgba(255, 255, 255, 0.05)'
+                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                                position: 'relative'
                             }}
                         >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
@@ -38,9 +54,36 @@ const TransactionList = ({ transactions, onDelete, onEdit }) => {
                                         <TrendingDown size={18} color="#f43f5e" />
                                     }
                                 </div>
-                                <div>
-                                    <h4 style={{ fontSize: '1rem', fontWeight: 500 }}>{t.description}</h4>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{formatDate(t.date)} • {t.category}</p>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <h4 style={{ fontSize: '1rem', fontWeight: 500, margin: 0 }}>{t.description}</h4>
+                                        {t.source_message && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setSelectedMsg(selectedMsg === t.id ? null : t.id) }}
+                                                style={{ background: 'rgba(99, 102, 241, 0.1)', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', padding: '2px' }}
+                                                title="View Tracked Message"
+                                            >
+                                                <Info size={12} color="var(--accent-blue)" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+                                        {formatDate(t.date)} • {t.category} • <span style={{ color: 'var(--accent-blue)' }}>{getMethodLabel(t.payment_method)}</span>
+                                    </p>
+
+                                    {/* Tracked Message Overlay */}
+                                    <AnimatePresence>
+                                        {selectedMsg === t.id && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                                style={{ overflow: 'hidden', marginTop: '0.5rem' }}
+                                            >
+                                                <div style={{ fontSize: '0.7rem', padding: '0.5rem', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', borderLeft: '2px solid var(--accent-blue)', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                                    {t.source_message}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 

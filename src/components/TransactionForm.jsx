@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, Pencil, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Pencil, X, Clipboard, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ReceiptUpload from './ReceiptUpload';
+import { toast } from 'react-toastify';
 
 const CATEGORIES = ['Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Other'];
 
@@ -33,7 +34,13 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
     const [amount, setAmount] = useState('');
     const [type, setType] = useState('expense');
     const [category, setCategory] = useState(CATEGORIES[0]);
+    const [paymentMethod, setPaymentMethod] = useState('upi');
     const [file, setFile] = useState(null);
+
+    // SMS Parsing State
+    const [showParser, setShowParser] = useState(false);
+    const [smsText, setSmsText] = useState('');
+    const [sourceMessage, setSourceMessage] = useState('');
 
     // Populate form when editing
     useEffect(() => {
@@ -42,18 +49,97 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             setAmount(editingTransaction.amount.toString());
             setType(editingTransaction.type);
             setCategory(categoryMap[editingTransaction.category] || CATEGORIES[0]);
+            setPaymentMethod(editingTransaction.payment_method || 'upi');
+            setSourceMessage(editingTransaction.source_message || '');
         } else {
             // Reset form
             setDescription('');
             setAmount('');
             setType('expense');
             setCategory(CATEGORIES[0]);
+            setPaymentMethod('upi');
+            setSourceMessage('');
         }
     }, [editingTransaction]);
 
+    const handleParseSMS = () => {
+        if (!smsText.trim()) return;
+
+        let parsedAmount = null;
+        let parsedDesc = null;
+        let parsedType = 'expense';
+
+        // 1. Improved Amount Regex (handles Rs, INR, debited by, credited with)
+        const amountRegex = /(?:Rs\.?|INR|Amt|Amount|debited|credited|by)\s*[:\.]?\s*([\d,]+\.?\d*)/i;
+        const amountMatch = smsText.match(amountRegex);
+        if (amountMatch) {
+            parsedAmount = amountMatch[1].replace(/,/g, '');
+        }
+
+        // 2. Sophisticated Type Detection
+        const lowerText = smsText.toLowerCase();
+        const incomeKeywords = ['credited', 'received', 'added', 'received payment', 'depositing'];
+        const expenseKeywords = ['debited', 'spent', 'payment to', 'sent to', 'txn of', 'paid to'];
+
+        if (incomeKeywords.some(k => lowerText.includes(k))) {
+            parsedType = 'income';
+        } else if (expenseKeywords.some(k => lowerText.includes(k))) {
+            parsedType = 'expense';
+        }
+
+        // 3. Robust Merchant/Description Extraction
+        // Look for common merchant indicators: "to", "at", "vpa", "info", "@"
+        const merchantRegexes = [
+            /(?:to|at|info|vpa|paid to)\s+([A-Za-z0-9\s&]+?)(?:\s+(?:on|via|ref|from|avl|for|@)|$)/i,
+            /at\s+([A-Za-z0-9\s&]+?)\s+on/i,
+            /to\s+([A-Za-z0-9\s&@\.]+?)\s+ref/i
+        ];
+
+        for (const regex of merchantRegexes) {
+            const match = smsText.match(regex);
+            if (match && match[1]) {
+                const cleaned = match[1].trim();
+                if (cleaned.length > 2 && !['vpa', 'ref', 'avl'].includes(cleaned.toLowerCase())) {
+                    parsedDesc = cleaned;
+                    break;
+                }
+            }
+        }
+
+        // Fallback for UPI Addresses
+        if (!parsedDesc) {
+            const upiMatch = smsText.match(/([a-zA-Z0-9\.\-_]+@[a-zA-Z0-9\-_]+)/);
+            if (upiMatch) parsedDesc = `UPI: ${upiMatch[1]}`;
+        }
+
+        if (parsedAmount || parsedDesc) {
+            if (parsedAmount) setAmount(parsedAmount);
+            if (parsedDesc) setDescription(parsedDesc);
+            setType(parsedType);
+            setPaymentMethod('upi');
+            setSourceMessage(smsText); // Track the original message
+
+            // Auto-categorize if possible
+            const lowerDesc = (parsedDesc || '').toLowerCase();
+            if (lowerDesc.includes('swiggy') || lowerDesc.includes('zomato') || lowerDesc.includes('restaurant')) setCategory('Food');
+            if (lowerDesc.includes('uber') || lowerDesc.includes('ola') || lowerDesc.includes('metro')) setCategory('Transport');
+            if (lowerDesc.includes('amazon') || lowerDesc.includes('flipkart') || lowerDesc.includes('myntra')) setCategory('Shopping');
+
+            toast.success("Transaction details refined!", { icon: "✨" });
+            setShowParser(false);
+            setSmsText('');
+        } else {
+            toast.warning("Scanning failed. Format not recognized.");
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!description || !amount) return;
+
+        if (!description || !amount) {
+            toast.warning("Please enter both description and amount");
+            return;
+        }
 
         const transactionData = {
             description,
@@ -61,6 +147,8 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             type: type,
             category: type === 'expense' ? reverseCategoryMap[category] || 'other' : 'salary',
             date: editingTransaction ? editingTransaction.date : new Date().toISOString().split('T')[0],
+            payment_method: paymentMethod,
+            source_message: sourceMessage // Store tracked data
         };
 
         try {
@@ -76,9 +164,12 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
                 setDescription('');
                 setAmount('');
                 setFile(null);
+                setPaymentMethod('upi');
+                setSourceMessage('');
             }
         } catch (error) {
             console.error('Failed to save transaction:', error);
+            // Error is already toasted in AppContext
         }
     };
 
@@ -87,22 +178,70 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="glass-panel"
-            style={{ padding: '2rem', height: 'fit-content' }}
+            style={{ padding: '2rem', height: 'fit-content', position: 'relative' }}
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {editingTransaction ? <Pencil size={20} color="var(--accent-blue)" /> : <Plus size={20} />}
                     {editingTransaction ? 'Edit Transaction' : 'Add New'}
                 </h3>
-                {editingTransaction && (
-                    <button
-                        onClick={onCancel}
-                        style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                    >
-                        <X size={20} />
-                    </button>
-                )}
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {!editingTransaction && (
+                        <button
+                            onClick={() => setShowParser(!showParser)}
+                            style={{
+                                background: showParser ? 'var(--accent-blue)' : 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '0.4rem',
+                                color: 'white',
+                                cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                fontSize: '0.8rem'
+                            }}
+                            title="Paste SMS to Auto-fill"
+                        >
+                            <Clipboard size={16} />
+                            <span className="desktop-only">Paste SMS</span>
+                        </button>
+                    )}
+                    {editingTransaction && (
+                        <button
+                            onClick={onCancel}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
+                    )}
+                </div>
             </div>
+
+            <AnimatePresence>
+                {showParser && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden', marginBottom: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '0.5rem' }}
+                    >
+                        <textarea
+                            placeholder="Paste bank SMS here (e.g. Sent Rs. 200 to Starbucks...)"
+                            className="input-field"
+                            style={{ minHeight: '60px', fontSize: '0.85rem', marginBottom: '0.5rem' }}
+                            value={smsText}
+                            onChange={(e) => setSmsText(e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            onClick={handleParseSMS}
+                            className="btn-primary"
+                            style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}
+                        >
+                            Auto-Fill <ArrowRight size={14} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
@@ -158,15 +297,32 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
                     />
                 </div>
 
-                <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Amount (₹)</label>
-                    <input
-                        type="number"
-                        className="input-field"
-                        placeholder="0.00"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                    />
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Amount (₹)</label>
+                        <input
+                            type="number"
+                            className="input-field"
+                            placeholder="0.00"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Method</label>
+                        <select
+                            className="input-field"
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            style={{ cursor: 'pointer' }}
+                        >
+                            <option value="cash">Cash</option>
+                            <option value="card">Card</option>
+                            <option value="upi">UPI</option>
+                            <option value="net_banking">Net Banking</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
                 </div>
 
                 {type === 'expense' && (

@@ -8,10 +8,26 @@ const AppContext = createContext();
 export const AppProvider = ({ children }) => {
     // Auth State
     const [user, setUser] = useState({ name: '', email: null, isAuthenticated: false, settings: { currency: 'INR' } });
+    const [currency, setCurrency] = useState('INR'); // Global currency state
+    const EXCHANGE_RATE = 83; // 1 USD = 83 INR
     const [authLoading, setAuthLoading] = useState(true);
+
+    // Helper: Format Currency (Global)
+    const formatCurrency = (amount) => {
+        if (currency === 'USD') {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / EXCHANGE_RATE);
+        }
+        return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+    };
+
+    const toggleCurrency = () => {
+        setCurrency(prev => prev === 'INR' ? 'USD' : 'INR');
+    };
 
     // Gamification & Data State
     const [points, setPoints] = useState(0);
+    const [level, setLevel] = useState(1);
+    const [nextThreshold, setNextThreshold] = useState(100);
     const [badges, setBadges] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [dataLoading, setDataLoading] = useState(false);
@@ -28,6 +44,8 @@ export const AppProvider = ({ children }) => {
             // Fetch user profile (points)
             const profileRes = await api.get('/users/profile/');
             setPoints(profileRes.data.points || 0);
+            setLevel(profileRes.data.level || 1);
+            setNextThreshold(profileRes.data.next_level_threshold || 100);
 
             // Fetch badges
             const badgesRes = await api.get('/users/badges/');
@@ -256,6 +274,9 @@ export const AppProvider = ({ children }) => {
             // Update local state
             setTransactions(prev => [response.data, ...prev]);
 
+            // Refresh User Data (Points / Level)
+            await fetchUserData();
+
             toast.success('Transaction added!', { theme: "dark" });
             return response.data;
         } catch (error) {
@@ -357,6 +378,17 @@ export const AppProvider = ({ children }) => {
         }
     };
 
+    // Calculate Balance
+    const totalIncome = transactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+    const totalExpense = transactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+    const balance = totalIncome - totalExpense;
+
     return (
         <AppContext.Provider value={{
             user,
@@ -371,12 +403,18 @@ export const AppProvider = ({ children }) => {
             addTransaction,
             deleteTransaction,
             updateTransaction,
+            balance,
             points,
+            level,
+            nextThreshold,
             badges,
             fetchUserData,
             fetchMe,
             isDark,
-            toggleTheme
+            toggleTheme,
+            currency,
+            toggleCurrency,
+            formatCurrency
         }}>
             {children}
         </AppContext.Provider>

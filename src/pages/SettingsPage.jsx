@@ -23,6 +23,7 @@ const SettingsPage = () => {
         name: user?.name || 'Lathish',
         email: user?.email || 'test@example.com',
         bio: 'Full-stack developer enjoying the Thrifty life.',
+        upi_id: user?.profile?.upi_id || '',
         currency: 'INR',
         notifications: true,
         darkMode: isDark
@@ -31,15 +32,19 @@ const SettingsPage = () => {
     const handleSave = async () => {
         setIsLoading(true);
         try {
-            // Update the user's name on the backend
-
+            // Update User model (name)
             await api.patch('/users/me/', { first_name: formData.name });
 
-            // Refresh current user info so UI shows updated name
+            // Update UserProfile model (upi_id)
+            if (formData.upi_id !== user?.profile?.upi_id) {
+                await api.patch('/users/profile/', { upi_id: formData.upi_id });
+            }
+
+            // Refresh current user info so UI shows updated data
             fetchMe && await fetchMe();
 
             toast.success('Settings saved successfully!');
-            navigate('/');
+            // navigate('/'); // Stay on settings page to see changes
         } catch (error) {
             console.error('Error saving settings:', error);
             toast.error(error.response?.data?.error || 'Failed to save settings');
@@ -163,6 +168,20 @@ const SettingsPage = () => {
                                             disabled
                                         />
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className="input-group">
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>UPI ID (VPA)</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Smartphone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                                    <input
+                                        className="input-field"
+                                        style={{ paddingLeft: '2.5rem' }}
+                                        placeholder="e.g. user@okhdfcbank"
+                                        value={formData.upi_id}
+                                        onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
+                                    />
                                 </div>
                             </div>
 

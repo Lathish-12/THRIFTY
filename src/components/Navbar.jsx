@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink } from 'react-router-dom';
-import { Home, PieChart, CreditCard, LayoutDashboard, Gift, MessageCircle, Wallet, Target, TrendingUp } from 'lucide-react';
+import { Home, PieChart, CreditCard, LayoutDashboard, Gift, MessageCircle, Wallet, Target, TrendingUp, Gem, Bitcoin } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const Navbar = () => {
@@ -25,17 +25,19 @@ const Navbar = () => {
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.8rem',
+                gap: '0.6rem',
                 width: '100%',
                 justifyContent: 'space-evenly', // Even spacing for mobile
-                maxWidth: '800px' // Constraint width on desktop
+                maxWidth: '950px' // Wider to accommodate new item
             }}>
-                <NavItem to="/" icon={<LayoutDashboard size={22} />} text="Dashboard" />
-                <NavItem to="/transactions" icon={<CreditCard size={22} />} text="Transactions" />
-                <NavItem to="/budgets" icon={<Wallet size={22} />} text="Budget" />
-                <NavItem to="/goals" icon={<Target size={22} />} text="Goals" />
-                <NavItem to="/analytics" icon={<TrendingUp size={22} />} text="Analytics" />
-                <NavItem to="/advisor" icon={<MessageCircle size={22} />} text="Advisor" />
+                <NavItem to="/" icon={<LayoutDashboard size={20} />} text="Dash" />
+                <NavItem to="/transactions" icon={<CreditCard size={20} />} text="Trans" />
+                <NavItem to="/budgets" icon={<Wallet size={20} />} text="Budget" />
+                <NavItem to="/goals" icon={<Target size={20} />} text="Goals" />
+                <NavItem to="/analytics" icon={<TrendingUp size={20} />} text="Charts" />
+                <NavItem to="/metals" icon={<Gem size={20} />} text="Metals" />
+                <NavItem to="/crypto" icon={<Bitcoin size={20} />} text="Crypto" />
+                <NavItem to="/advisor" icon={<MessageCircle size={20} />} text="AI" />
             </div>
         </nav>
     );
@@ -52,14 +54,14 @@ const NavItem = ({ to, icon, text }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                height: '44px',
-                minWidth: '44px', // ensure touch target size
-                padding: isHovered || isActive ? '0 1rem' : '0',
-                borderRadius: '22px',
+                height: '42px',
+                minWidth: '42px',
+                padding: isHovered || isActive ? '0 0.8rem' : '0',
+                borderRadius: '21px',
                 color: isActive ? 'white' : 'var(--text-secondary)',
                 background: isActive ? 'var(--accent-blue)' : (isHovered ? 'rgba(255,255,255,0.05)' : 'transparent'),
-                transition: 'all 0.3s ease',
-                gap: '0.5rem',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                gap: '0.4rem',
                 overflow: 'hidden',
                 textDecoration: 'none',
                 flexShrink: 0
@@ -72,11 +74,10 @@ const NavItem = ({ to, icon, text }) => {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {icon}
                     </div>
-                    {/* Text hidden on mobile via CSS class or check */}
-                    <span className="desktop-only" style={{
+                    <span style={{
                         whiteSpace: 'nowrap',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
                         display: (isHovered || isActive) ? 'block' : 'none'
                     }}>
                         {text}

@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Transaction, Badge, Budget, Goal
+from .models import UserProfile, Transaction, Badge, Budget, Goal, Payment
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -8,8 +8,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserProfile
-        fields = ['id', 'profile_picture', 'profile_picture_url', 'points', 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at', 'profile_picture_url']
+        fields = ['id', 'points', 'level', 'profile_picture', 'profile_picture_url', 'upi_id', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'profile_picture_url', 'level']
     
     def get_profile_picture_url(self, obj):
         if obj.profile_picture:
@@ -51,7 +51,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
-        fields = ['id', 'type', 'category', 'amount', 'description', 'date', 'created_at', 'updated_at']
+        fields = ['id', 'type', 'category', 'amount', 'description', 'date', 'updated_at', 'payment_method', 'source_message']
         read_only_fields = ['created_at', 'updated_at']
 
     def create(self, validated_data):
@@ -93,4 +93,12 @@ class GoalSerializer(serializers.ModelSerializer):
         model = Goal
         fields = ['id', 'name', 'target_amount', 'current_amount', 'deadline', 'icon', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
 

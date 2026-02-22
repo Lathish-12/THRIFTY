@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "concurrently \"npm run dev\" \"cd backend && .venv\\Scripts\\python.exe manage.py runserver\"",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "tunnel:frontend": "npx localtunnel --port 5173",
+    "tunnel:backend": "npx localtunnel --port 8000",
+    "tunnel:password": "cd backend && .venv\\Scripts\\python.exe -c \"import requests; print('Your Tunnel Password is:', requests.get('https://loca.lt/mytunnelpassword').text.strip())\""
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",
@@ -20,6 +24,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
+    "react-qr-code": "^2.0.18",
     "react-router-dom": "^7.10.1",
     "react-toastify": "^11.0.5",
     "recharts": "^3.5.1"
@@ -29,11 +34,13 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "localtunnel": "^2.0.2",
     "vite": "^7.2.4"
   }
 }

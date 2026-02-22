@@ -7,6 +7,15 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'thrifty_backend.settings')
+    
+    # DEBUG: Check for .env loading
+    try:
+        from decouple import config
+        key = config('GEMINI_API_KEY', default=None)
+        print(f"MANAGE.PY DEBUG: GEMINI_API_KEY found: {key[:5] + '...' if key else 'None'}")
+        print(f"MANAGE.PY DEBUG: CWD: {os.getcwd()}")
+    except Exception as e:
+        print(f"MANAGE.PY DEBUG: Error checking config: {e}")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

@@ -6,6 +6,8 @@ import ReportGenerator from '../components/ReportGenerator';
 import { useApp } from '../context/AppContext';
 import { motion } from 'framer-motion';
 
+import UPITrackingLog from '../components/UPITrackingLog';
+
 const TransactionsPage = () => {
     const { transactions, deleteTransaction } = useApp();
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -29,15 +31,19 @@ const TransactionsPage = () => {
                 <TransactionForm editingTransaction={editingTransaction} onCancel={cancelEdit} />
                 <ReportGenerator />
             </div>
-            <div style={{ gridColumn: 'span 8' }}>
+            <div style={{ gridColumn: 'span 8', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <TransactionList
                     transactions={transactions}
                     onDelete={deleteTransaction}
                     onEdit={handleEdit}
                 />
+
+                {/* UPI Transaction Tracking System */}
+                <UPITrackingLog />
             </div>
         </motion.div>
     );
 };
+
 
 export default TransactionsPage;

@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer
-from .models import Transaction, Badge, UserProfile, Budget, Goal
+from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer, PaymentSerializer
+from .models import Transaction, Badge, UserProfile, Budget, Goal, Payment
 from rest_framework_simplejwt.tokens import RefreshToken
 import requests
 from jwt import decode as jwt_decode
@@ -12,6 +12,10 @@ from jwt.exceptions import InvalidTokenError, DecodeError
 import os
 from django.core.mail import send_mail
 from django.conf import settings
+from decouple import config
+import razorpay
+import uuid
+from .ai_service import AIService
 
 class GoogleLoginView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -131,14 +135,24 @@ class UserProfileView(APIView):
 
     def get(self, request):
         profile, created = UserProfile.objects.get_or_create(user=request.user)
+        # Check level up status
+        profile.check_level_up
         serializer = UserProfileSerializer(profile, context={'request': request})
-        return Response(serializer.data)
+        # Add next level threshold for frontend progress bar
+        data = serializer.data
+        next_threshold = 100
+        if profile.points > 600: next_threshold = 1000
+        elif profile.points > 300: next_threshold = 600
+        elif profile.points > 100: next_threshold = 300
+        data['next_level_threshold'] = next_threshold
+        return Response(data)
 
     def patch(self, request):
         profile, created = UserProfile.objects.get_or_create(user=request.user)
         serializer = UserProfileSerializer(profile, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
+            profile.check_level_up # Check after update
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -226,206 +240,191 @@ class DeleteAccountView(APIView):
 
 
 class AIAdvisorView(APIView):
-    """AI Financial Advisor powered by Google Gemini or Anthropic Claude"""
+    """Data-Driven Financial Advisor (No External AI)"""
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         try:
-            from decouple import config
-            import requests
-            import json
-            
             # Get user message
-            user_message = request.data.get('message', '')
+            user_message = request.data.get('message', '').strip()
             if not user_message:
                 return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Get user's financial data for context
-            transactions = Transaction.objects.filter(user=request.user)
-            
-            # Calculate financial summary
-            expenses = transactions.filter(type='expense')
-            income = transactions.filter(type='income')
-            total_expense = sum(float(t.amount) for t in expenses)
-            total_income = sum(float(t.amount) for t in income)
-            
-            # Category breakdown
-            category_summary = {}
-            for t in expenses:
-                cat = t.category or 'Uncategorized'
-                category_summary[cat] = category_summary.get(cat, 0) + float(t.amount)
-            
-            top_categories = sorted(category_summary.items(), key=lambda x: x[1], reverse=True)[:5]
-            
-            # Build context for AI
-            financial_context = f"""
-User's Financial Summary:
-- Total Transactions: {transactions.count()}
-- Total Income: ₹{total_income:.2f}
-- Total Expenses: ₹{total_expense:.2f}
-- Net Balance: ₹{total_income - total_expense:.2f}
-
-Top Spending Categories:
-{chr(10).join([f"- {cat}: ₹{amount:.2f}" for cat, amount in top_categories])}
-
-Recent Transactions (last 5):
-{chr(10).join([f"- {t.description}: ₹{t.amount} ({t.category}, {t.date})" for t in transactions.order_by('-date')[:5]])}
-"""
-            
-            # Get API keys
-            gemini_key = config('GEMINI_API_KEY', default=None)
-            claude_key = config('ANTHROPIC_API_KEY', default=None)
-            
-            system_prompt = f"""You are Thrifty AI, an expert financial advisor integrated into a personal finance app. 
-You provide personalized financial advice based on the user's actual transaction data.
-
-{financial_context}
-
-Guidelines:
-- Be friendly, encouraging, and supportive
-- Provide specific, actionable advice based on their data
-- Use their actual numbers when giving recommendations
-- Format currency as ₹ (Indian Rupees)
-- Keep responses concise but informative
-- Highlight insights with **bold text** for emphasis
-- When appropriate, suggest concrete next steps
-- Be honest about limitations and encourage professional advice for complex situations
-
-Your goal is to help users understand their finances better and make smarter money decisions."""
-
-            # 1. Try Gemini Integration
-            if gemini_key and gemini_key != 'your-gemini-api-key-here':
-                try:
-                    import google.generativeai as genai
-                    genai.configure(api_key=gemini_key)
-                    model = genai.GenerativeModel('gemini-flash-latest')
-                    
-                    full_prompt = f"{system_prompt}\n\nUser Question: {user_message}"
-                    response = model.generate_content(full_prompt)
-                    
-                    return Response({
-                        'response': response.text,
-                        'type': 'text',
-                        'powered_by': 'Google Gemini'
-                    })
-                except Exception as g_err:
-                    print(f"Gemini error, trying Claude: {g_err}")
-
-            # 2. Try Claude / OpenRouter if Gemini fails or is missing
-            if claude_key and claude_key != 'your-claude-api-key-here':
-                # Detect if it's an OpenRouter key
-                if claude_key.startswith('sk-or-'):
-                    response = requests.post(
-                        url="https://openrouter.ai/api/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {claude_key}",
-                            "Content-Type": "application/json"
-                        },
-                        data=json.dumps({
-                            "model": "anthropic/claude-3.5-sonnet",
-                            "messages": [
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": user_message}
-                            ]
-                        })
-                    )
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        response_text = data['choices'][0]['message']['content']
-                        return Response({
-                            'response': response_text,
-                            'type': 'text',
-                            'powered_by': 'claude-3.5-sonnet (via OpenRouter)'
-                        })
+            # Get user's financial data
+            if request.user.is_authenticated:
+                transactions = Transaction.objects.filter(user=request.user).order_by('-date')
+                expenses = transactions.filter(type='expense')
+                income = transactions.filter(type='income')
+                total_expense = sum(float(t.amount) for t in expenses)
+                total_income = sum(float(t.amount) for t in income)
+                transaction_count = transactions.count()
                 
-                else:
-                    # Direct Anthropic API
-                    import anthropic
-                    client = anthropic.Anthropic(api_key=claude_key)
-                    message = client.messages.create(
-                        model="claude-3-5-sonnet-20241022",
-                        max_tokens=1024,
-                        system=system_prompt,
-                        messages=[{"role": "user", "content": user_message}]
-                    )
-                    return Response({
-                        'response': message.content[0].text,
-                        'type': 'text',
-                        'powered_by': 'claude-3.5-sonnet'
-                    })
+                # Fetch Goals and Budgets
+                goals = Goal.objects.filter(user=request.user)
+                budgets = Budget.objects.filter(user=request.user)
 
-            # 3. Final Fallback to Smart Data Analysis
-            return self._generate_mock_response(user_message, {
+                # Category breakdown
+                category_summary = {}
+                for t in expenses:
+                    cat = t.category or 'Uncategorized'
+                    category_summary[cat] = category_summary.get(cat, 0) + float(t.amount)
+                
+                top_categories = sorted(category_summary.items(), key=lambda x: x[1], reverse=True)
+                
+                recent_transactions = transactions[:5]
+            else:
+                transactions = Transaction.objects.none()
+                expenses = transactions
+                income = transactions
+                total_expense = 0.0
+                total_income = 0.0
+                transaction_count = 0
+                category_summary = {}
+                top_categories = []
+                recent_transactions = []
+                goals = []
+                budgets = []
+
+            # Prepare financial context data
+            financial_context = {
                 'total_expense': total_expense,
                 'total_income': total_income,
-                'categories': top_categories,
-                'transaction_count': transactions.count()
-            })
+                'balance': total_income - total_expense,
+                'top_categories': top_categories[:3], # Just top 3 for prompt brevity
+                'user_name': request.user.first_name or request.user.username,
+                'goal_count': goals.count(),
+                'budget_count': budgets.count()
+            }
 
+            # Try to get AI response from Ollama
+            ai_response = AIService.get_advisor_advice(user_message, financial_context)
             
-        except Exception as e:
-            print(f"AI Advisor Error: {e}")
-            # Fallback to smart mock response on error
-            return self._generate_mock_response(
-                user_message,
+            if ai_response:
+                return Response({
+                    'response': ai_response,
+                    'type': 'text',
+                    'powered_by': f"Ollama ({config('OLLAMA_MODEL', default='deepseek-r1:1.5b')})"
+                })
+
+            # Fallback to local rule-based engine if Ollama fails
+            response_data = self._generate_data_response(
+                user_message, 
                 {
                     'total_expense': total_expense,
                     'total_income': total_income,
-                    'categories': top_categories,
-                    'transaction_count': transactions.count()
+                    'balance': total_income - total_expense,
+                    'categories': category_summary,
+                    'top_categories': top_categories,
+                    'count': transaction_count,
+                    'recent': recent_transactions,
+                    'user_name': request.user.first_name or request.user.username,
+                    'goals': goals,
+                    'budgets': budgets
                 }
             )
 
-    
-    def _generate_mock_response(self, query, insights):
-        """Fallback intelligence that provides real advice based on data even without AI"""
-        query_l = query.lower()
-        
-        # Extract data for easier access
-        expense = insights['total_expense']
-        income = insights['total_income']
-        balance = income - expense
-        categories = dict(insights['categories'])
-        count = insights['transaction_count']
+            return Response({
+                'response': response_data,
+                'type': 'text',
+                'powered_by': 'Thrifty Local Engine (Fallback)'
+            })
+            
+        except Exception as e:
+            print(f"Advisor Error: {e}")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        response = ""
+    def _generate_data_response(self, query, data):
+        """Rule-based response generator using user data"""
+        q = query.lower()
         
-        if 'investment' in query_l or 'invest' in query_l:
-            if balance > 0:
-                response = f"Based on your current surplus of **₹{balance:.2f}**, you're in a great position to start investing! 📈\n\n**My Recommendations:**\n1. Consider a **Fixed Deposit (FD)** for safety.\n2. Look into **Mutual Funds** for long-term growth.\n3. Keep an emergency fund of at least 3 months of expenses."
-            else:
-                response = "I noticed your balance is currently tight. Before investing, I recommend focusing on building an **emergency fund** and reducing any high-interest debt. 🛡️"
-        
-        elif 'budget' in query_l or 'plan' in query_l:
-            response = "Let's create a **50/30/20 Budget Plan** for you: 📋\n\n"
-            response += f"1. **Needs (50%):** ₹{income * 0.5:.2f} (Rent, Bills)\n"
-            response += f"2. **Wants (30%):** ₹{income * 0.3:.2f} (Dining, Leisure)\n"
-            response += f"3. **Savings (20%):** ₹{income * 0.2:.2f} (Future self)\n\n"
-            if expense > (income * 0.8):
-                response += "⚠️ **Alert:** Your current spending is higher than typical guidelines. Let's try to cut back on discretionary categories."
-        
-        elif 'spending' in query_l or 'expense' in query_l or 'habits' in query_l:
-            response = f"You've tracked **{count}** transactions with a total spend of **₹{expense:.2f}**. 📊\n\n"
-            if categories:
-                top_cat = list(categories.keys())[0]
-                response += f"Your top spending category is **{top_cat}** (₹{categories[top_cat]:.2f}). "
-                response += f"Try to reduce {top_cat} spending by **10%** next month to save ₹{categories[top_cat] * 0.1:.2f}."
-            else:
-                response += "You haven't categorized your expenses yet. Categorizing helps me give you better advice!"
-        
-        else:
-            # General helpful response
-            if count == 0:
-                response = "I'm ready to help! Start by adding your first transaction in the **Transactions** tab so I can analyze your finances. 🚀"
-            else:
-                response = f"I've analyzed your **{count}** transactions. Your current net flow is **{'+' if balance >= 0 else ''}₹{balance:.2f}**. 💰\n\nHow can I help you today? You can ask about:\n- \"How is my spending looking?\"\n- \"Can you suggest an investment?\"\n- \"Create a budget plan for me.\""
+        # 1. Greetings
+        if any(w in q for w in ['hello', 'hi', 'hey', 'start']):
+            return f"Hello {data['user_name']}! 👋 I am your Thrifty Advisor. I can help you analyze your finances based on your data.\n\nTry asking:\n- \"What is my balance?\"\n- \"Show my goals\"\n- \"How is my budget?\"\n- \"Highest spending category?\""
 
-        return Response({
-            'response': response,
-            'type': 'text',
-            'powered_by': 'thrifty-local-analyzer'
-        })
+        # 2. Balance / Financial Health
+        if any(w in q for w in ['balance', 'net', 'status', 'health', 'how much do i have']):
+            balance = data['balance']
+            status_emoji = '🎉' if balance >= 0 else '⚠️'
+            return f"**Current Financial Status:**\n\nIncome: ₹{data['total_income']:.2f}\nExpenses: ₹{data['total_expense']:.2f}\n------------------\n**Net Balance: ₹{balance:.2f}** {status_emoji}"
+
+        # 3. Income Analysis
+        if 'income' in q or 'earned' in q or 'made' in q:
+            return f"You have recorded a total income of **₹{data['total_income']:.2f}** from {data['count']} total transactions."
+
+        # 4. Expense/Spending Analysis
+        if 'spend' in q or 'spent' in q or 'expense' in q or 'cost' in q:
+            msg = f"Your total expenses amount to **₹{data['total_expense']:.2f}**.\n\n"
+            if data['top_categories']:
+                top = data['top_categories'][0]
+                msg += f"Your highest spending is in **{top[0]}** (₹{top[1]:.2f})."
+            else:
+                msg += "You haven't recorded any expenses yet."
+            return msg
+
+        # 5. Category Breakdown
+        if 'category' in q or 'breakdown' in q or 'where' in q: # "Where did my money go?"
+            if not data['top_categories']:
+                return "No category data available yet. Add some expenses!"
+            
+            msg = "**Spending by Category:**\n"
+            for cat, amount in data['top_categories'][:5]:
+                msg += f"- **{cat}**: ₹{amount:.2f}\n"
+            return msg
+
+        # 6. Recent Transactions
+        if 'recent' in q or 'transaction' in q or 'last' in q or 'history' in q:
+            if not data['recent']:
+                return "No transactions found."
+            
+            msg = "**Last 5 Transactions:**\n"
+            for t in data['recent']:
+                sign = '+' if t.type == 'income' else '-'
+                msg += f"- {t.date}: **{t.description}** ({sign}₹{t.amount})\n"
+            return msg
+
+        # 7. Goals Analysis
+        if 'goal' in q or 'target' in q:
+            goals = data.get('goals', [])
+            if not goals:
+                return "You haven't set any financial goals yet. Head to the **Goals** page to set one!"
+            
+            msg = "**Your Financial Goals:**\n\n"
+            for g in goals:
+                progress = (g.current_amount / g.target_amount) * 100
+                msg += f"- **{g.name}**: ₹{g.current_amount} / ₹{g.target_amount} ({progress:.1f}%)\n"
+            return msg
+
+        # 8. Budget Analysis
+        if 'budget' in q or 'limit' in q:
+            budgets = data.get('budgets', [])
+            if not budgets:
+                return "No budgets set. Setting a budget helps you save more!"
+            
+            msg = "**Your Budgets:**\n\n"
+            for b in budgets:
+                # Calculating spent amount for that category:
+                # Try exact match or lowercase match
+                spent = data['categories'].get(b.category, data['categories'].get(b.category.lower(), 0))
+                
+                msg += f"- **{b.category}**: Spent ₹{spent:.2f} / ₹{b.limit:.2f}\n"
+                if spent > b.limit:
+                    msg += "  ⚠️ **Over Budget!**\n"
+                else:
+                    msg += "  ✅ On Track\n"
+            return msg
+
+        # 9. Investment or Savings Advice (Rule-Based)
+        if 'invest' in q or 'save' in q or 'suggestion' in q or 'tip' in q:
+            balance = data['balance']
+            if balance > 5000:
+                return f"Since you have a surplus of **₹{balance:.2f}**, consider:\n1. Building an emergency fund (3-6 months of expenses).\n2. Starting a Recurring Deposit (RD) or SIP.\n3. Allocating 50% to needs, 30% to wants, 20% to savings."
+            elif balance > 0:
+                return f"You have a small surplus of **₹{balance:.2f}**. Focus on tracking every expense and building a small safety net before aggressive investing."
+            else:
+                return "Your expenses currently exceed your income. ⚠️ My advice:\n1. distinct 'Needs' vs 'Wants'.\n2. Cut down on the top spending category.\n3. Avoid new debts."
+
+        # Default fallback
+        return "I can answer questions about your **balance**, **expenses**, **goals**, **budgets**, or **recent transactions**. Try asking: 'Show my goals' or 'How is my budget?'"
 
 
 class SupportRequestView(APIView):
@@ -480,5 +479,117 @@ class SupportRequestView(APIView):
         except Exception as e:
             print(f"Support Request Error: {e}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+import uuid
+
+class PaymentCreateView(APIView):
+    """Create a new payment order (Simulated/Gateway)"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            amount = request.data.get('amount')
+            if not amount:
+                return Response({'error': 'Amount is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Initialize Razorpay Client
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            
+            # Create Razorpay Order (Amount in paise: 1 INR = 100 paise)
+            razorpay_data = {
+                "amount": int(float(amount) * 100),
+                "currency": "INR",
+                "receipt": f"receipt_{uuid.uuid4().hex[:10]}"
+            }
+            
+            razorpay_order = client.order.create(data=razorpay_data)
+            order_id = razorpay_order['id']
+            
+            payment = Payment.objects.create(
+                user=request.user,
+                order_id=order_id,
+                amount=amount,
+                status='pending',
+                provider='razorpay'
+            )
+            
+            return Response({
+                'order_id': order_id,
+                'amount': amount,
+                'currency': 'INR',
+                'key': settings.RAZORPAY_KEY_ID
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PaymentWebhookView(APIView):
+    """Simulated Webhook Handler for Payment Confirmation"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            order_id = request.data.get('order_id')
+            success = request.data.get('success', False)
+            payment_id = request.data.get('payment_id', f"pay_{uuid.uuid4().hex[:12]}")
+            
+            payment = Payment.objects.get(order_id=order_id)
+            
+            if success:
+                payment.status = 'success'
+                payment.payment_id = payment_id
+                payment.save()
+                
+                # Auto-create budget/wallet transaction on success
+                Transaction.objects.create(
+                    user=payment.user,
+                    type='income',
+                    category='other',
+                    amount=payment.amount,
+                    description=f"UPI Deposit Ref: {payment_id}",
+                    date=payment.created_at.date(),
+                    payment_method='upi'
+                )
+                
+                # Bonus: Add points for depositing
+                profile = payment.user.profile
+                profile.points += 50
+                profile.save()
+                profile.check_level_up
+                
+                # Step 5: Trigger Notification (Email)
+                try:
+                    send_mail(
+                        'Payment Successful: Thrifty Wallet Updated',
+                        f"Hello {payment.user.username},\n\nYour payment of ₹{payment.amount} (ID: {payment_id}) was successfully reconciled and added to your Thrifty wallet.\n\nTransaction Type: UPI\nRef: {payment.order_id}\n\nThank you for using Thrifty!",
+                        settings.DEFAULT_FROM_EMAIL,
+                        [payment.user.email],
+                        fail_silently=True,
+                    )
+                except Exception as e:
+                    print(f"Notification error: {e}")
+
+                return Response({'status': 'Payment successful, Wallet updated and Notification triggered'})
+
+            else:
+                payment.status = 'failed'
+                payment.save()
+                return Response({'status': 'Payment failed'})
+                
+        except Payment.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
+    """View history of UPI/Gateway transactions"""
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Payment.objects.filter(user=self.request.user).order_by('-created_at')
+
 
 

@@ -4,14 +4,14 @@ import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { useApp } from '../context/AppContext';
 
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, formatter }) => {
     if (active && payload && payload.length) {
         return (
             <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '10px', border: '1px solid var(--glass-border)', borderRadius: '8px' }}>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '5px' }}>{label}</p>
                 {payload.map((entry, index) => (
                     <p key={index} style={{ color: entry.color || entry.stroke || '#fff', margin: 0 }}>
-                        {entry.name}: ₹{parseFloat(entry.value).toLocaleString()}
+                        {entry.name}: {formatter(entry.value)}
                     </p>
                 ))}
             </div>
@@ -21,7 +21,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const AnalyticsPage = () => {
-    const { transactions } = useApp();
+    const { transactions, formatCurrency } = useApp();
 
     // 1. Process Spending Data (by category)
     const categoryTotals = transactions
@@ -103,7 +103,7 @@ const AnalyticsPage = () => {
                                 <XAxis dataKey="name" stroke="#94a3b8" />
                                 <YAxis stroke="#94a3b8" />
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                <Tooltip content={<CustomTooltip />} />
+                                <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
                                 <Area type="monotone" dataKey="income" stroke="#10b981" fillOpacity={1} fill="url(#colorIncome)" />
                                 <Area type="monotone" dataKey="expense" stroke="#f43f5e" fillOpacity={1} fill="url(#colorExpense)" />
                             </AreaChart>
@@ -136,7 +136,7 @@ const AnalyticsPage = () => {
                                             <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                                         ))}
                                     </Pie>
-                                    <Tooltip content={<CustomTooltip />} />
+                                    <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
                                 </PieChart>
                             </ResponsiveContainer>
                             {/* Legend */}
@@ -165,7 +165,7 @@ const AnalyticsPage = () => {
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                                     <XAxis dataKey="name" stroke="#94a3b8" />
                                     <YAxis stroke="#94a3b8" />
-                                    <Tooltip content={<CustomTooltip />} />
+                                    <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
                                     <Line type="monotone" dataKey="expense" stroke="#a855f7" strokeWidth={3} dot={{ stroke: '#a855f7', strokeWidth: 2, r: 4 }} activeDot={{ r: 8 }} />
                                 </LineChart>
                             </ResponsiveContainer>

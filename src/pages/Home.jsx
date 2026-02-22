@@ -6,7 +6,7 @@ import ProfilePhotoUpload from '../components/ProfilePhotoUpload';
 import api from '../api/axios';
 
 const HomePage = () => {
-    const { transactions, user } = useApp();
+    const { transactions, user, badges } = useApp();
     const [profilePhoto, setProfilePhoto] = useState(null);
 
     useEffect(() => {
@@ -41,6 +41,32 @@ const HomePage = () => {
                         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
                             You are on track with your monthly budget. Keep up the great work!
                         </p>
+
+                        {/* Badges Display */}
+                        {badges.length > 0 && (
+                            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                {badges.map((badge, idx) => (
+                                    <div key={idx}
+                                        className="glass-panel"
+                                        style={{
+                                            padding: '0.4rem 0.8rem',
+                                            background: 'rgba(255,215,0,0.1)',
+                                            border: '1px solid rgba(255,215,0,0.3)',
+                                            borderRadius: '20px',
+                                            fontSize: '0.8rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.3rem',
+                                            color: '#fbbf24'
+                                        }}
+                                        title={badge.description}
+                                    >
+                                        <span>🏆</span>
+                                        <span>{badge.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

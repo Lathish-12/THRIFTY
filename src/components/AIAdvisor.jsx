@@ -11,7 +11,7 @@ const AIAdvisor = ({ transactions }) => {
     const [messages, setMessages] = useState([
         {
             role: 'ai',
-            text: "👋 Hello! I'm your **Thrifty AI Financial Advisor** powered by **Google Gemini**. I can provide deep insights into your spending patterns, predict future expenses, and help you achieve your financial goals. How can I help you today?",
+            text: "👋 Hello! I'm your **Thrifty Financial Advisor**. I can provide deep insights into your spending patterns, predict future expenses, and help you achieve your financial goals. How can I help you today?",
             type: 'text'
         }
     ]);
@@ -50,13 +50,13 @@ const AIAdvisor = ({ transactions }) => {
         const totalIncome = income.reduce((a, b) => a + parseFloat(b.amount || 0), 0);
 
         if (totalIncome - totalExpense < 0) {
-            suggestions.push("I'm spending too much, help!");
+            suggestions.push("How can I save more?");
         } else {
             suggestions.push("Investment suggestions");
         }
 
-        if (expenses.length > 10) {
-            suggestions.push("Show spending trends");
+        if (expenses.length > 5) {
+            suggestions.push("Highest spending category?");
         }
 
         return suggestions.slice(0, 6);
@@ -91,12 +91,10 @@ const AIAdvisor = ({ transactions }) => {
 
             // Update API status based on new response types
             const pb = response.data.powered_by;
-            if (pb.includes('claude-3.5-sonnet') || pb.includes('Gemini')) {
+            if (pb === 'Thrifty Local Engine' || pb === 'thrifty-local-analyzer') {
                 setApiStatus('active');
-            } else if (pb === 'thrifty-local-analyzer') {
-                setApiStatus('fallback');
             } else {
-                setApiStatus('fallback');
+                setApiStatus('active'); // Default to active for any successful response
             }
 
             setMessages(prev => [...prev, aiResponse]);
@@ -207,9 +205,9 @@ const AIAdvisor = ({ transactions }) => {
                                     }}
                                 />
                                 <span style={{ color: apiStatus === 'active' ? '#10b981' : apiStatus === 'fallback' ? '#f59e0b' : '#6366f1' }}>
-                                    {apiStatus === 'active' ? 'Live AI (Gemini/Claude)' :
+                                    {apiStatus === 'active' ? 'Live Assistant' :
                                         apiStatus === 'fallback' ? 'Smart Data Analysis' :
-                                            'AI Ready'}
+                                            'Ready'}
                                 </span>
                             </div>
                         </div>
@@ -267,7 +265,7 @@ const AIAdvisor = ({ transactions }) => {
                         }}
                     >
                         <Info size={16} />
-                        Currently using Smart Data Analysis. Add your Gemini API key to `.env` for advanced AI conversation.
+                        Currently providing insights based on your transaction history.
                     </motion.div>
                 )}
 
@@ -533,8 +531,8 @@ const AIAdvisor = ({ transactions }) => {
                     }}>
                         <Lightbulb size={14} />
                         {apiStatus === 'active'
-                            ? 'Powered by Gemini/Claude AI with your real transaction data'
-                            : 'Add Gemini/Claude API key for AI-powered insights'}
+                            ? 'Powered by your real transaction data'
+                            : 'Start asking questions to get insights!'}
                     </div>
                 </div>
             </motion.div>
