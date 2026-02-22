@@ -160,6 +160,8 @@ class Payment(models.Model):
     order_id = models.CharField(max_length=100, unique=True, help_text="Gateway Order ID")
     payment_id = models.CharField(max_length=100, blank=True, null=True, help_text="Gateway Payment ID")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='INR')
+    receipt = models.CharField(max_length=100, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     provider = models.CharField(max_length=50, default='razorpay')
     created_at = models.DateTimeField(auto_now_add=True)

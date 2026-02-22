@@ -563,6 +563,8 @@ class PaymentCreateView(APIView):
                 user=request.user,
                 order_id=order_id,
                 amount=amount,
+                currency=razorpay_data['currency'],
+                receipt=razorpay_data['receipt'],
                 status='pending',
                 provider='razorpay'
             )
