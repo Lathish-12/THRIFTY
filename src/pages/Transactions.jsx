@@ -6,7 +6,7 @@ import ReportGenerator from '../components/ReportGenerator';
 import { useApp } from '../context/AppContext';
 import { motion } from 'framer-motion';
 
-import UPITrackingLog from '../components/UPITrackingLog';
+
 
 const TransactionsPage = () => {
     const { transactions, deleteTransaction } = useApp();
@@ -38,8 +38,7 @@ const TransactionsPage = () => {
                     onEdit={handleEdit}
                 />
 
-                {/* UPI Transaction Tracking System */}
-                <UPITrackingLog />
+
             </div>
         </motion.div>
     );

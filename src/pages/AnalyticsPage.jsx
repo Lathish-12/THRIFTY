@@ -36,7 +36,7 @@ const AnalyticsPage = () => {
     const spendingData = Object.entries(categoryTotals).map(([name, value], index) => ({
         name,
         value,
-        color: colors[index % colors.colors?.length || index % 7]
+        color: colors[index % colors.length]
     }));
 
     // 2. Process Monthly Data (last 6 months)

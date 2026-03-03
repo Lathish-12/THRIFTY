@@ -11,7 +11,12 @@
     "preview": "vite preview",
     "tunnel:frontend": "npx localtunnel --port 5173",
     "tunnel:backend": "npx localtunnel --port 8000",
-    "tunnel:password": "cd backend && .venv\\Scripts\\python.exe -c \"import requests; print('Your Tunnel Password is:', requests.get('https://loca.lt/mytunnelpassword').text.strip())\""
+    "tunnel:firebase": "npx localtunnel --port 5000",
+    "bore:frontend": "npx bore local 5173",
+    "bore:backend": "npx bore local 8000",
+    "bore:firebase": "npx bore local 5000",
+    "tunnel:password": "cd backend && .venv\\Scripts\\python.exe -c \"import requests; print('Your Tunnel Password is:', requests.get('https://loca.lt/mytunnelpassword').text.strip())\"",
+    "deploy:preview": "firebase hosting:channel:deploy preview"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",
@@ -34,6 +39,7 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "bore": "^2.0.1",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",

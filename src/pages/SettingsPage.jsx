@@ -23,9 +23,8 @@ const SettingsPage = () => {
         name: user?.name || 'Lathish',
         email: user?.email || 'test@example.com',
         bio: 'Full-stack developer enjoying the Thrifty life.',
-        upi_id: user?.profile?.upi_id || '',
         currency: 'INR',
-        notifications: true,
+        notifications_enabled: user?.profile?.notifications_enabled ?? true,
         darkMode: isDark
     });
 
@@ -35,10 +34,12 @@ const SettingsPage = () => {
             // Update User model (name)
             await api.patch('/users/me/', { first_name: formData.name });
 
-            // Update UserProfile model (upi_id)
-            if (formData.upi_id !== user?.profile?.upi_id) {
-                await api.patch('/users/profile/', { upi_id: formData.upi_id });
-            }
+            // Update UserProfile model (notifications)
+            await api.patch('/users/profile/', {
+                notifications_enabled: formData.notifications_enabled
+            });
+
+
 
             // Refresh current user info so UI shows updated data
             fetchMe && await fetchMe();
@@ -171,19 +172,7 @@ const SettingsPage = () => {
                                 </div>
                             </div>
 
-                            <div className="input-group">
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>UPI ID (VPA)</label>
-                                <div style={{ position: 'relative' }}>
-                                    <Smartphone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-                                    <input
-                                        className="input-field"
-                                        style={{ paddingLeft: '2.5rem' }}
-                                        placeholder="e.g. user@okhdfcbank"
-                                        value={formData.upi_id}
-                                        onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
-                                    />
-                                </div>
-                            </div>
+
 
                             <div className="input-group">
                                 <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Bio / Description</label>
@@ -228,7 +217,7 @@ const SettingsPage = () => {
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Receive alerts about expenses</p>
                                     </div>
                                 </div>
-                                <Toggle checked={formData.notifications} onChange={() => setFormData({ ...formData, notifications: !formData.notifications })} />
+                                <Toggle checked={formData.notifications_enabled} onChange={() => setFormData({ ...formData, notifications_enabled: !formData.notifications_enabled })} />
                             </div>
                         </motion.div>
                     )}

@@ -268,20 +268,39 @@ export const AppProvider = ({ children }) => {
     // Data Actions - Now using Backend API
     const addTransaction = async (transactionData) => {
         try {
-            // Send to backend
+            console.log("Adding transaction to backend...");
             const response = await api.post('/users/transactions/', transactionData);
+            console.log("Backend response received:", response.data);
 
-            // Update local state
+            // Update local state first to be responsive
             setTransactions(prev => [response.data, ...prev]);
 
-            // Refresh User Data (Points / Level)
-            await fetchUserData();
+            // Attempt to refresh user data, but don't let it crash the whole flow if it fails
+            try {
+                await fetchUserData();
+            } catch (err) {
+                console.error("fetchUserData failed in addTransaction:", err);
+            }
 
             toast.success('Transaction added!', { theme: "dark" });
             return response.data;
         } catch (error) {
             console.error('Error adding transaction:', error);
-            toast.error('Failed to add transaction');
+            const errorData = error.response?.data;
+            let errorMsg = 'Failed to add transaction';
+
+            if (errorData) {
+                // If it's an object (validation errors), format it
+                if (typeof errorData === 'object') {
+                    errorMsg = Object.entries(errorData)
+                        .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+                        .join(' | ');
+                } else {
+                    errorMsg = errorData.toString();
+                }
+            }
+
+            toast.error(errorMsg, { theme: "dark", autoClose: 5000 });
             throw error;
         }
     };
@@ -303,7 +322,7 @@ export const AppProvider = ({ children }) => {
 
     const updateTransaction = async (id, transactionData) => {
         try {
-            // Update in backend
+            // Support both JSON and FormData
             const response = await api.patch(`/users/transactions/${id}/`, transactionData);
 
             // Update local state

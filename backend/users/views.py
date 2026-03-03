@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer, PaymentSerializer, NotificationSerializer
-from .models import Transaction, Badge, UserProfile, Budget, Goal, Payment, Notification
+from .serializers import RegisterSerializer, UserSerializer, TransactionSerializer, BadgeSerializer, UserProfileSerializer, BudgetSerializer, GoalSerializer, NotificationSerializer
+from .models import Transaction, Badge, UserProfile, Budget, Goal, Notification
 from rest_framework_simplejwt.tokens import RefreshToken
 import requests
 from jwt import decode as jwt_decode
@@ -12,9 +12,7 @@ from jwt.exceptions import InvalidTokenError, DecodeError
 import os
 from django.core.mail import send_mail
 from django.conf import settings
-from decouple import config
-import razorpay
-import uuid
+
 from .ai_service import AIService
 
 class GoogleLoginView(APIView):
@@ -153,25 +151,65 @@ class UserProfileView(APIView):
         if serializer.is_valid():
             serializer.save()
             profile.check_level_up # Check after update
+            
+            # Notify user of settings update
+            from .utils import send_instant_notification
+            send_instant_notification(
+                request.user,
+                "Account Settings Updated",
+                "Your account profile settings have been successfully updated."
+            )
+            
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
 class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
-        # Only return transactions for the current user
-        return Transaction.objects.filter(user=self.request.user)
+        # Only return transactions for the current user, newest first
+        return Transaction.objects.filter(user=self.request.user).order_by('-date', '-created_at')
+
+    def perform_create(self, serializer):
+        try:
+            print(f"DEBUG: Validated Data: {serializer.validated_data}")
+            # Ensure user is set which save() should do
+            serializer.save(user=self.request.user)
+        except Exception as e:
+            import traceback
+            print(f"DEBUG: Exception during perform_create: {str(e)}")
+            traceback.print_exc()
+            raise e
+
+    def create(self, request, *args, **kwargs):
+        try:
+            print(f"DEBUG: Received transaction data: {request.data}")
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                print(f"DEBUG: Validation errors: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except Exception as e:
+            import traceback
+            print(f"DEBUG: Exception in create: {str(e)}")
+            traceback.print_exc()
+            return Response({"error": "Server Error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Get transaction summary (total income, expenses, balance)"""
         transactions = self.get_queryset()
         
-        total_income = sum(t.amount for t in transactions if t.type == 'income')
-        total_expenses = sum(t.amount for t in transactions if t.type == 'expense')
+        # Guard against empty querysets or non-numeric amounts safely
+        total_income = sum(float(t.amount) for t in transactions if t.type == 'income')
+        total_expenses = sum(float(t.amount) for t in transactions if t.type == 'expense')
         balance = total_income - total_expenses
 
         return Response({
@@ -483,187 +521,7 @@ class SupportRequestView(APIView):
 
 import uuid
 
-def finalize_payment(payment, payment_id):
-    """Refactored logic to finalize a successful payment and update user state"""
-    if payment.status == 'success':
-        return False # Already processed
-        
-    payment.status = 'success'
-    payment.payment_id = payment_id
-    payment.save()
 
-    # Create Wallet Transaction
-    Transaction.objects.get_or_create(
-        payment_id_tracking=payment_id, # Need to add this field or use description
-        defaults={
-            'user': payment.user,
-            'type': 'income',
-            'category': 'other',
-            'amount': payment.amount,
-            'description': f"UPI Deposit Ref: {payment_id}",
-            'date': payment.created_at.date(),
-            'payment_method': 'upi'
-        }
-    )
-
-    # Update Points & Level
-    profile = payment.user.profile
-    profile.points += 50
-    profile.save()
-    profile.check_level_up
-
-    # Send Notifications (Step 5)
-    # 1. In-App Notification
-    Notification.objects.create(
-        user=payment.user,
-        title="Payment Successful! 💰",
-        message=f"₹{payment.amount} has been added to your wallet. Ref: {payment_id}"
-    )
-
-    # 2. Email Notification
-    try:
-        subject = 'Payment Successful: Thrifty Wallet Updated'
-        message = f"Hi {payment.user.username},\n\nYour payment of ₹{payment.amount} (ID: {payment_id}) was successfully processed and added to your Thrifty wallet.\n\nTransaction Details:\n- Amount: ₹{payment.amount}\n- Ref: {payment_id}\n- Date: {payment.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n\nThank you for using Thrifty!"
-        
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [payment.user.email],
-            fail_silently=True,
-        )
-    except: pass
-    return True
-
-class PaymentCreateView(APIView):
-    """Create a new payment order (Simulated/Gateway)"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        try:
-            amount = request.data.get('amount')
-            if not amount:
-                return Response({'error': 'Amount is required'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Initialize Razorpay Client
-            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-            
-            # Create Razorpay Order (Amount in paise: 1 INR = 100 paise)
-            razorpay_data = {
-                "amount": int(float(amount) * 100),
-                "currency": "INR",
-                "receipt": f"receipt_{uuid.uuid4().hex[:10]}",
-                "payment_capture": 1
-            }
-            
-            razorpay_order = client.order.create(data=razorpay_data)
-            order_id = razorpay_order['id']
-            
-            payment = Payment.objects.create(
-                user=request.user,
-                order_id=order_id,
-                amount=amount,
-                currency=razorpay_data['currency'],
-                receipt=razorpay_data['receipt'],
-                status='pending',
-                provider='razorpay'
-            )
-            
-            return Response({
-                'order_id': order_id,
-                'amount': amount,
-                'currency': 'INR',
-                'key': settings.RAZORPAY_KEY_ID
-            })
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class PaymentVerifyView(APIView):
-    """Verify Razorpay payment signature (Step 4 & 5)"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        try:
-            order_id = request.data.get('razorpay_order_id')
-            payment_id = request.data.get('razorpay_payment_id')
-            signature = request.data.get('razorpay_signature')
-
-            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-            
-            # Verify Signature
-            params_dict = {
-                'razorpay_order_id': order_id,
-                'razorpay_payment_id': payment_id,
-                'razorpay_signature': signature
-            }
-            
-            try:
-                client.utility.verify_payment_signature(params_dict)
-            except Exception:
-                return Response({'error': 'Invalid payment signature'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Update Payment status & Wallet
-            payment = Payment.objects.get(order_id=order_id)
-            finalized = finalize_payment(payment, payment_id)
-            
-            if finalized:
-                return Response({'status': 'verified', 'detail': 'Wallet updated successfully'})
-            else:
-                return Response({'status': 'already_processed', 'detail': 'Payment already accounted for'})
-
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class RazorpayWebhookView(APIView):
-    """Production-grade Webhook Handler (Step 4)"""
-    permission_classes = [permissions.AllowAny] # Gateway needs access
-
-    def post(self, request):
-        webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
-        webhook_signature = request.headers.get('X-Razorpay-Signature')
-        webhook_body = request.body.decode('utf-8')
-
-        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-        
-        try:
-            client.utility.verify_webhook_signature(webhook_body, webhook_signature, webhook_secret)
-        except Exception:
-            return Response({'error': 'Invalid webhook signature'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Parse event
-        import json
-        data = json.loads(webhook_body)
-        event = data.get('event')
-
-        if event == "payment.captured":
-            payment_entity = data['payload']['payment']['entity']
-            order_id = payment_entity['order_id']
-            payment_id = payment_entity['id']
-            
-            try:
-                payment = Payment.objects.get(order_id=order_id)
-                
-                # Security: Validate amount (Gateway amount is in paise)
-                gateway_amount = payment_entity['amount'] / 100
-                if float(gateway_amount) != float(payment.amount):
-                    payment.status = 'failed'
-                    payment.save()
-                    return Response({'error': 'Amount mismatch'}, status=status.HTTP_400_BAD_REQUEST)
-                
-                finalize_payment(payment, payment_id)
-            except Payment.DoesNotExist:
-                pass
-
-        return Response({'status': 'ok'}, status=status.HTTP_200_OK)
-
-class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
-    """View history of UPI/Gateway transactions"""
-    serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return Payment.objects.filter(user=self.request.user).order_by('-created_at')
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -685,6 +543,37 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().update(is_read=True)
         return Response({'status': 'all notifications marked as read'})
+
+
+class PasswordResetView(APIView):
+    """Simple password reset view that sends an email"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+            # In a real app, you'd generate a token and a link
+            # For this demo, we'll just send a simulated success email
+            subject = 'Password Reset Request'
+            message = f"Hi {user.username},\n\nWe received a request to reset your password. If this was you, please follow the link below to set a new password:\n\nhttp://localhost:5173/reset-password?user={user.id}\n\nIf you didn't request this, you can safely ignore this email.\n\nBest,\nThrifty Team"
+            
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+            
+            return Response({'detail': 'Password reset email sent.'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'No user found with this email address.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

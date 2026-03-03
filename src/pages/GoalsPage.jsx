@@ -152,7 +152,7 @@ const GoalCard = ({ goal, onDelete }) => {
                     justifyContent: 'center',
                     fontSize: '1.5rem'
                 }}>
-                    {goal.icon === '💻' ? '💻' : goal.icon === 'vacation' ? '🌴' : goal.icon === 'fun' ? '🛡️' : '🎯'}
+                    {goal.icon || '🎯'}
                 </div>
                 <div style={{ padding: '0.25rem 0.75rem', borderRadius: '20px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', fontSize: '0.8rem', fontWeight: '600' }}>
                     {percentage.toFixed(0)}%
@@ -303,6 +303,30 @@ const AddGoalModal = ({ onClose, onAdd }) => {
                                 fontSize: '1rem'
                             }}
                         />
+                    </div>
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Goal Icon</label>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {['🎯', '💻', '🌴', '🏠', '🚗', '🎓', '🏥', '🎮', '📱'].map(emoji => (
+                                <button
+                                    key={emoji}
+                                    type="button"
+                                    onClick={() => setIcon(emoji)}
+                                    style={{
+                                        fontSize: '1.2rem',
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '8px',
+                                        background: icon === emoji ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
+                                        border: icon === emoji ? '2px solid white' : '1px solid var(--glass-border)',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem' }}>

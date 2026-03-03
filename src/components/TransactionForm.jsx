@@ -35,6 +35,7 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
     const [type, setType] = useState('expense');
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [paymentMethod, setPaymentMethod] = useState('upi');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [file, setFile] = useState(null);
 
     // SMS Parsing State
@@ -51,6 +52,14 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             setCategory(categoryMap[editingTransaction.category] || CATEGORIES[0]);
             setPaymentMethod(editingTransaction.payment_method || 'upi');
             setSourceMessage(editingTransaction.source_message || '');
+            setDate(editingTransaction.date ? editingTransaction.date.split('T')[0] : new Date().toISOString().split('T')[0]);
+
+            // Set existing receipt as preview
+            if (editingTransaction.receipt_url) {
+                setFile({ preview: editingTransaction.receipt_url, isExisting: true, name: 'Attached Receipt' });
+            } else {
+                setFile(null);
+            }
         } else {
             // Reset form
             setDescription('');
@@ -59,6 +68,8 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             setCategory(CATEGORIES[0]);
             setPaymentMethod('upi');
             setSourceMessage('');
+            setDate(new Date().toISOString().split('T')[0]);
+            setFile(null);
         }
     }, [editingTransaction]);
 
@@ -68,6 +79,7 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
         let parsedAmount = null;
         let parsedDesc = null;
         let parsedType = 'expense';
+        let parsedDate = null;
 
         // 1. Improved Amount Regex (handles Rs, INR, debited by, credited with)
         const amountRegex = /(?:Rs\.?|INR|Amt|Amount|debited|credited|by)\s*[:\.]?\s*([\d,]+\.?\d*)/i;
@@ -87,7 +99,21 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             parsedType = 'expense';
         }
 
-        // 3. Robust Merchant/Description Extraction
+        // 3. Date Detection
+        const dateRegex = /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})/i;
+        const dateMatch = smsText.match(dateRegex);
+        if (dateMatch) {
+            try {
+                const d = new Date(dateMatch[0]);
+                if (!isNaN(d.getTime())) {
+                    parsedDate = d.toISOString().split('T')[0];
+                }
+            } catch (e) {
+                console.error("Date parsing failed");
+            }
+        }
+
+        // 4. Robust Merchant/Description Extraction
         // Look for common merchant indicators: "to", "at", "vpa", "info", "@"
         const merchantRegexes = [
             /(?:to|at|info|vpa|paid to)\s+([A-Za-z0-9\s&]+?)(?:\s+(?:on|via|ref|from|avl|for|@)|$)/i,
@@ -115,6 +141,7 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
         if (parsedAmount || parsedDesc) {
             if (parsedAmount) setAmount(parsedAmount);
             if (parsedDesc) setDescription(parsedDesc);
+            if (parsedDate) setDate(parsedDate);
             setType(parsedType);
             setPaymentMethod('upi');
             setSourceMessage(smsText); // Track the original message
@@ -135,6 +162,7 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        console.log("Submitting transaction... Type:", type, "Category:", category, "Amount:", amount);
 
         if (!description || !amount) {
             toast.warning("Please enter both description and amount");
@@ -143,20 +171,34 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
 
         const transactionData = {
             description,
-            amount: parseFloat(amount),
-            type: type,
+            amount,
+            type,
             category: type === 'expense' ? reverseCategoryMap[category] || 'other' : 'salary',
-            date: editingTransaction ? editingTransaction.date : new Date().toISOString().split('T')[0],
+            date,
             payment_method: paymentMethod,
-            source_message: sourceMessage // Store tracked data
+            source_message: sourceMessage
         };
 
         try {
+            let submissionData = transactionData;
+
+            // Only use FormData if we have a new file to upload
+            if (file && file instanceof File) {
+                const formData = new FormData();
+                Object.keys(transactionData).forEach(key => {
+                    if (transactionData[key] !== undefined && transactionData[key] !== null) {
+                        formData.append(key, transactionData[key]);
+                    }
+                });
+                formData.append('receipt', file);
+                submissionData = formData;
+            }
+
             if (editingTransaction) {
-                await updateTransaction(editingTransaction.id, transactionData);
-                onCancel(); // Reset editing state
+                await updateTransaction(editingTransaction.id, submissionData);
+                onCancel();
             } else {
-                await addTransaction(transactionData);
+                await addTransaction(submissionData);
             }
 
             // Clear fields if not editing
@@ -169,7 +211,6 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
             }
         } catch (error) {
             console.error('Failed to save transaction:', error);
-            // Error is already toasted in AppContext
         }
     };
 
@@ -287,14 +328,26 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
                     </button>
                 </div>
 
-                <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Description</label>
-                    <input
-                        className="input-field"
-                        placeholder="e.g. Grocery Shopping"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                    />
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Description</label>
+                        <input
+                            className="input-field"
+                            placeholder="e.g. Grocery Shopping"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Date</label>
+                        <input
+                            type="date"
+                            className="input-field"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            style={{ padding: '0.5rem' }}
+                        />
+                    </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem' }}>
@@ -339,7 +392,7 @@ const TransactionForm = ({ editingTransaction, onCancel }) => {
                     </div>
                 )}
 
-                {!editingTransaction && <ReceiptUpload file={file} setFile={setFile} />}
+                <ReceiptUpload file={file} setFile={setFile} />
 
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                     {editingTransaction && (

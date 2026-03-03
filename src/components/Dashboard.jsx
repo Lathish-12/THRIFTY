@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Wallet, TrendingUp, TrendingDown, Trophy, RefreshCcw, Coins, Gem, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import PaymentSimulator from './PaymentSimulator';
-import PaymentService from '../api/paymentService';
+
 import { toast } from 'react-toastify';
 
 const COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#ec4899', '#8b5cf6'];
@@ -12,60 +11,9 @@ const COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#ec4899', '#8b5cf6'
 const Dashboard = ({ transactions }) => {
     const { formatCurrency, level, points, nextThreshold, user, fetchUserData } = useApp();
 
-    // Payment States
-    const [showDepositModal, setShowDepositModal] = useState(false);
-    const [depositAmount, setDepositAmount] = useState('');
-    const [currentOrder, setCurrentOrder] = useState(null);
-    const [isProcessing, setIsProcessing] = useState(false);
 
-    const handleStartDeposit = async () => {
-        const amt = parseFloat(depositAmount);
-        if (isNaN(amt) || amt <= 0) return toast.error("Enter a valid amount");
 
-        setIsProcessing(true);
-        try {
-            const order = await PaymentService.createOrder(amt);
 
-            const options = {
-                key: order.key,
-                amount: order.amount * 100, // Razorpay works in paise
-                currency: "INR",
-                name: "Thrifty Wallet",
-                description: "Recharge your digital wallet",
-                order_id: order.order_id,
-                handler: async function (response) {
-                    toast.success("Payment Captured! Reconciling...");
-                    try {
-                        //architecture: Step 4 & 5 (Sync with backend)
-                        await PaymentService.verifyPayment(
-                            order.order_id,
-                            response.razorpay_payment_id,
-                            response.razorpay_signature
-                        );
-                        await fetchUserData();
-                        toast.success("Wallet Updated Successfully!");
-                    } catch (err) {
-                        toast.error("Verification failed. Please contact support.");
-                    }
-                },
-                prefill: {
-                    name: user?.name,
-                    email: user?.email,
-                },
-                theme: {
-                    color: "#6366f1",
-                },
-            };
-
-            const rzp = new window.Razorpay(options);
-            rzp.open();
-            setShowDepositModal(false);
-        } catch (error) {
-            toast.error("Could not initiate secure gateway");
-        } finally {
-            setIsProcessing(false);
-        }
-    };
 
     // Calculate total income, expense, balance
     const totalIncome = transactions
@@ -131,49 +79,7 @@ const Dashboard = ({ transactions }) => {
 
     return (
         <div className="grid-layout" style={{ marginBottom: '2rem' }}>
-            <AnimatePresence>
-                {showDepositModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                        <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '2rem', border: '1px solid var(--accent-blue)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                                <h3>Deposit Funds</h3>
-                                <button onClick={() => setShowDepositModal(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}><X size={20} /></button>
-                            </div>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>Recharge your Thrifty wallet via secure UPI gateway.</p>
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>Amount (₹)</label>
-                                <input
-                                    type="number"
-                                    className="input-field"
-                                    placeholder="e.g. 500"
-                                    value={depositAmount}
-                                    onChange={(e) => setDepositAmount(e.target.value)}
-                                    style={{ fontSize: '1.2rem', fontWeight: 'bold' }}
-                                />
-                            </div>
-                            <button
-                                onClick={handleStartDeposit}
-                                className="btn-primary"
-                                style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}
-                                disabled={isProcessing}
-                            >
-                                {isProcessing ? "Connecting Gateway..." : "Initiate UPI Payment"}
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-                {currentOrder && (
-                    <PaymentSimulator
-                        amount={currentOrder.amount}
-                        orderId={currentOrder.order_id}
-                        onClose={() => setCurrentOrder(null)}
-                        onSuccess={() => { toast.success("Thrifty Points Updated! 💎") }}
-                    />
-                )}
-            </AnimatePresence>
+
 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -185,13 +91,6 @@ const Dashboard = ({ transactions }) => {
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Current Balance</p>
                     <h2 style={{ fontSize: '2.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         {formatCurrency(balance)}
-                        <button
-                            onClick={() => setShowDepositModal(true)}
-                            className="btn-secondary"
-                            style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)' }}
-                        >
-                            + Deposit
-                        </button>
                     </h2>
                 </div>
                 <div style={{ padding: '1.5rem', background: 'rgba(99, 102, 241, 0.2)', borderRadius: '50%' }}>

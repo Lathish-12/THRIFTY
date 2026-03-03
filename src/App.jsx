@@ -60,7 +60,6 @@ class ErrorBoundary extends React.Component {
 const Layout = ({ children }) => {
   const { user, currency, toggleCurrency } = useApp();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isUPIOpen, setIsUPIOpen] = useState(false);
 
   // Search Logic
   const navigate = useNavigate();
@@ -179,7 +178,7 @@ const Layout = ({ children }) => {
             />
 
             <AnimatePresence>
-              {showSuggestions && searchTerm && (
+              {showSuggestions && searchTerm && filteredItems.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -195,61 +194,36 @@ const Layout = ({ children }) => {
                     overflow: 'hidden',
                     backdropFilter: 'blur(10px)',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 2000
                   }}
                 >
-                  {filteredItems.length > 0 ? (
-                    filteredItems.map(item => (
-                      <div
-                        key={item.path}
-                        onClick={() => handleNavigate(item.path)}
-                        style={{
-                          padding: '0.75rem 1rem',
-                          cursor: 'pointer',
-                          color: 'var(--text-primary)',
-                          borderBottom: '1px solid rgba(255,255,255,0.05)',
-                          fontSize: '0.9rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
-                        }}
-                        onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                      >
-                        <Search size={14} style={{ opacity: 0.5 }} />
-                        {item.name}
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center' }}>
-                      No results found
+                  {filteredItems.map(item => (
+                    <div
+                      key={item.path}
+                      onClick={() => handleNavigate(item.path)}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-primary)',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        fontSize: '0.9rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    >
+                      <Search size={14} style={{ opacity: 0.5 }} />
+                      {item.name}
                     </div>
-                  )}
+                  ))}
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          <button
-            onClick={() => setIsUPIOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              background: 'rgba(59, 130, 246, 0.15)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '8px',
-              padding: '0.4rem 0.8rem',
-              color: '#60a5fa',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              marginRight: '0.5rem',
-              fontWeight: 500
-            }}
-            title="Receive Money (UPI)"
-          >
-            <QrCode size={18} />
-            <span className="desktop-only">Receive</span>
-          </button>
+
 
           <button
             onClick={toggleCurrency}
@@ -312,9 +286,6 @@ const Layout = ({ children }) => {
       </header>
 
       <main style={{ flex: 1, padding: '1.5rem', paddingTop: '80px', paddingBottom: '90px', maxWidth: '1400px', margin: '0 auto', width: '100%', overflowX: 'hidden' }}>
-        <AnimatePresence>
-          {isUPIOpen && <UPIGenerator onClose={() => setIsUPIOpen(false)} />}
-        </AnimatePresence>
         <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
         <AnimatePresence mode="wait">
           {children}

@@ -208,25 +208,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
                                 <p style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.email || 'user@example.com'}</p>
                             </div>
 
-                            {user?.profile?.upi_id && (
-                                <div style={{ marginBottom: '1.5rem', background: 'rgba(99, 102, 241, 0.1)', padding: '0.8rem', borderRadius: '10px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <Smartphone size={14} /> Primary UPI ID
-                                    </p>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <p style={{ color: 'var(--accent-blue)', fontWeight: '600', margin: 0 }}>{user.profile.upi_id}</p>
-                                        <button
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(user.profile.upi_id);
-                                                toast.success("UPI ID Copied!");
-                                            }}
-                                            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
-                                        >
-                                            <Copy size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                                 <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>

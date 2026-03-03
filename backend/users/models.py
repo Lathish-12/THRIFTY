@@ -9,6 +9,7 @@ class UserProfile(models.Model):
     points = models.IntegerField(default=0)
     level = models.IntegerField(default=1)
     upi_id = models.CharField(max_length=50, blank=True, null=True, help_text="Your UPI VPA")
+    notifications_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -31,8 +32,17 @@ class UserProfile(models.Model):
             new_level = 2
         
         if new_level > self.level:
+            old_level = self.level
             self.level = new_level
             self.save()
+            
+            # Send level up notification
+            from .utils import send_instant_notification
+            send_instant_notification(
+                self.user,
+                "Level Up! 🚀",
+                f"Congratulations! You've reached Level {new_level} on Thrifty. Keep up the great financial habits!"
+            )
             return True # Leveled up
         return False
 
@@ -77,7 +87,8 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.CharField(max_length=255)
     source_message = models.TextField(blank=True, null=True, help_text="Original SMS or notification content")
-    payment_id_tracking = models.CharField(max_length=100, blank=True, null=True, unique=True, help_text="Razorpay/Gateway Payment ID for tracking")
+
+    receipt = models.ImageField(upload_to='receipts/', null=True, blank=True)
     date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -122,11 +133,23 @@ class Budget(models.Model):
     def spent(self):
         """Calculate total spent in this category"""
         from django.db.models import Sum
+        # Try exact match first (case-insensitive)
         total = Transaction.objects.filter(
             user=self.user,
-            category__icontains=self.category.split()[0],  # Match category name
+            category__iexact=self.category,
             type='expense'
         ).aggregate(Sum('amount'))['amount__sum']
+        
+        if total:
+            return total
+
+        # Fallback to matching if the budget category is one of the shorthand keys
+        total = Transaction.objects.filter(
+            user=self.user,
+            category__icontains=self.category.split()[0],
+            type='expense'
+        ).aggregate(Sum('amount'))['amount__sum']
+        
         return total or 0
 
 
@@ -148,27 +171,7 @@ class Goal(models.Model):
         return f"{self.user.username} - {self.name} - ₹{self.target_amount}"
 
 
-class Payment(models.Model):
-    """Payment model to track UPI/Gateway transactions"""
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('success', 'Success'),
-        ('failed', 'Failed'),
-    ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
-    order_id = models.CharField(max_length=100, unique=True, help_text="Gateway Order ID")
-    payment_id = models.CharField(max_length=100, blank=True, null=True, help_text="Gateway Payment ID")
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    currency = models.CharField(max_length=3, default='INR')
-    receipt = models.CharField(max_length=100, blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    provider = models.CharField(max_length=50, default='razorpay')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.status} - ₹{self.amount}"
 
 
 class Notification(models.Model):

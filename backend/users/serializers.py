@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, Transaction, Badge, Budget, Goal, Payment, Notification
+from .models import UserProfile, Transaction, Badge, Budget, Goal, Notification
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -8,7 +8,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserProfile
-        fields = ['id', 'points', 'level', 'profile_picture', 'profile_picture_url', 'upi_id', 'created_at', 'updated_at']
+        fields = ['id', 'points', 'level', 'profile_picture', 'profile_picture_url', 'upi_id', 'notifications_enabled', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'profile_picture_url', 'level']
     
     def get_profile_picture_url(self, obj):
@@ -45,19 +45,36 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         # Create UserProfile automatically
         UserProfile.objects.create(user=user)
+        
+        # Send Welcome Notification
+        from .utils import send_instant_notification
+        send_instant_notification(
+            user,
+            "Welcome to Thrifty! 🌟",
+            f"Hi {user.first_name or user.username}, welcome to your smart financial tracking journey. We're excited to help you save and grow!"
+        )
+        
         return user
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    receipt_url = serializers.SerializerMethodField()
+    user = serializers.ReadOnlyField(source='user.username')
+    
     class Meta:
         model = Transaction
-        fields = ['id', 'type', 'category', 'amount', 'description', 'date', 'updated_at', 'payment_method', 'source_message']
-        read_only_fields = ['created_at', 'updated_at']
+        fields = ['id', 'user', 'type', 'category', 'amount', 'description', 'date', 'updated_at', 'payment_method', 'source_message', 'receipt', 'receipt_url']
+        read_only_fields = ['created_at', 'updated_at', 'receipt_url', 'user']
 
-    def create(self, validated_data):
-        # Automatically set the user from the request context
-        user = self.context['request'].user
-        return Transaction.objects.create(user=user, **validated_data)
+    def get_receipt_url(self, obj):
+        if obj.receipt:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.receipt.url)
+        return None
+
+    # Standard DRF save() handles creation
+    # The viewset calls save(user=request.user) which will create correctly.
 
 
 class BadgeSerializer(serializers.ModelSerializer):
@@ -76,17 +93,8 @@ class BudgetSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at', 'spent']
     
     def get_spent(self, obj):
-        """Calculate total spent for this budget category"""
-        from django.db.models import Sum
-        try:
-            total = Transaction.objects.filter(
-                user=obj.user,
-                category__icontains=obj.category.split()[0],  # Match category name
-                type='expense'
-            ).aggregate(Sum('amount'))['amount__sum']
-            return float(total) if total else 0.0
-        except (Exception, IndexError) as e:
-            return 0.0
+        """Use the model property to calculate spent amount"""
+        return float(obj.spent)
 
 class GoalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -95,11 +103,7 @@ class GoalSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class PaymentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Payment
-        fields = '__all__'
-        read_only_fields = ['user', 'created_at', 'updated_at']
+
 
 
 class NotificationSerializer(serializers.ModelSerializer):

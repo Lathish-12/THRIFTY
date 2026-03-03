@@ -15,6 +15,13 @@ const CryptoPage = () => {
 
     const COINS = ['bitcoin', 'ethereum', 'solana', 'binancecoin', 'ripple', 'cardano', 'polkadot', 'chainlink'];
 
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredCoins = cryptoData.filter(coin =>
+        coin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        coin.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     useEffect(() => {
         const fetchCryptoRates = async () => {
             try {
@@ -116,48 +123,65 @@ const CryptoPage = () => {
                                 <input
                                     type="text"
                                     placeholder="Search market tokens..."
-                                    style={{ width: '100%', padding: '0.7rem 1rem 0.7rem 2.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '12px', color: 'white', outline: 'none' }}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.7rem 1rem 0.7rem 2.8rem',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid var(--glass-border)',
+                                        borderRadius: '12px',
+                                        color: 'white',
+                                        outline: 'none',
+                                        boxSizing: 'border-box'
+                                    }}
                                 />
                             </div>
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '600px', overflowY: 'auto', paddingRight: '4px' }}>
-                            {cryptoData.slice(0, 6).map((coin) => (
-                                <motion.div
-                                    key={coin.id}
-                                    whileHover={{ x: 5 }}
-                                    onClick={() => setSelectedCoin(coin)}
-                                    className="glass-panel"
-                                    style={{
-                                        padding: '1.2rem',
-                                        cursor: 'pointer',
-                                        border: selectedCoin?.id === coin.id ? '2px solid var(--accent-blue)' : '1px solid var(--glass-border)',
-                                        background: selectedCoin?.id === coin.id ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.4)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                        <div style={{ position: 'relative' }}>
-                                            <img src={coin.image} alt={coin.name} style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
-                                            <div style={{ position: 'absolute', bottom: -2, right: -2, width: '10px', height: '10px', background: '#10b981', borderRadius: '50%', border: '2px solid var(--bg-primary)' }} />
+                            {filteredCoins.length > 0 ? (
+                                filteredCoins.map((coin) => (
+                                    <motion.div
+                                        key={coin.id}
+                                        whileHover={{ x: 5 }}
+                                        onClick={() => setSelectedCoin(coin)}
+                                        className="glass-panel"
+                                        style={{
+                                            padding: '1.2rem',
+                                            cursor: 'pointer',
+                                            border: selectedCoin?.id === coin.id ? '2px solid var(--accent-blue)' : '1px solid var(--glass-border)',
+                                            background: selectedCoin?.id === coin.id ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.4)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                            <div style={{ position: 'relative' }}>
+                                                <img src={coin.image} alt={coin.name} style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                                                <div style={{ position: 'absolute', bottom: -2, right: -2, width: '10px', height: '10px', background: '#10b981', borderRadius: '50%', border: '2px solid var(--bg-primary)' }} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '1rem' }}>{coin.name}</h4>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{coin.symbol}</span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h4 style={{ margin: 0, fontSize: '1rem' }}>{coin.name}</h4>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{coin.symbol}</span>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '1rem', fontWeight: '700' }}>₹{coin.current_price.toLocaleString()}</div>
+                                            <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', color: coin.price_change_percentage_24h >= 0 ? '#10b981' : '#f43f5e' }}>
+                                                <TrendingUp size={12} style={{ transform: coin.price_change_percentage_24h < 0 ? 'rotate(180deg)' : 'none' }} />
+                                                {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '1rem', fontWeight: '700' }}>₹{coin.current_price.toLocaleString()}</div>
-                                        <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', color: coin.price_change_percentage_24h >= 0 ? '#10b981' : '#f43f5e' }}>
-                                            <TrendingUp size={12} style={{ transform: coin.price_change_percentage_24h < 0 ? 'rotate(180deg)' : 'none' }} />
-                                            {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            ))}
+                                    </motion.div>
+                                ))
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                                    No tokens found
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -300,7 +324,7 @@ const CryptoPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {cryptoData.map((coin) => (
+                                {filteredCoins.map((coin) => (
                                     <tr
                                         key={coin.id}
                                         onClick={() => { setSelectedCoin(coin); setViewMode('grid'); }}

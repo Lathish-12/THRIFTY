@@ -2,6 +2,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Transaction, UserProfile, Badge, Goal, Budget
 from django.contrib.auth.models import User
+from .utils import send_instant_notification
 
 @receiver(post_save, sender=Transaction)
 def check_transaction_badges(sender, instance, created, **kwargs):
@@ -9,6 +10,13 @@ def check_transaction_badges(sender, instance, created, **kwargs):
         if created:
             user = instance.user
             profile = user.profile
+            
+            # Send Notification
+            send_instant_notification(
+                user, 
+                "New Transaction Recorded", 
+                f"A new {instance.type} of ₹{instance.amount} for '{instance.description}' has been added to your account."
+            )
             
             # 1. Earn Points
             profile.points += 10
@@ -35,6 +43,13 @@ def check_transaction_badges(sender, instance, created, **kwargs):
                         'icon': 'shopping-bag'
                     }
                 )
+        else:
+            # Transaction updated
+            send_instant_notification(
+                instance.user,
+                "Transaction Updated",
+                f"Your transaction '{instance.description}' has been updated to ₹{instance.amount}."
+            )
     except Exception as e:
         print(f"Error in check_transaction_badges: {e}")
 
@@ -43,6 +58,11 @@ def check_goal_badges(sender, instance, created, **kwargs):
     try:
         if created:
             user = instance.user
+            send_instant_notification(
+                user,
+                "New Goal Set",
+                f"Congratulations! You've set a new goal: '{instance.name}' with a target of ₹{instance.target_amount}."
+            )
             Badge.objects.get_or_create(
                 user=user,
                 name="Goal Setter",
@@ -53,6 +73,13 @@ def check_goal_badges(sender, instance, created, **kwargs):
             )
             user.profile.points += 50
             user.profile.save()
+        else:
+            # Goal updated
+            send_instant_notification(
+                instance.user,
+                "Goal Updated",
+                f"Your goal '{instance.name}' has been updated. Current progress: ₹{instance.current_amount} / ₹{instance.target_amount}."
+            )
     except Exception as e:
         print(f"Error in check_goal_badges: {e}")
 
@@ -61,6 +88,11 @@ def check_budget_badges(sender, instance, created, **kwargs):
     try:
         if created:
             user = instance.user
+            send_instant_notification(
+                user,
+                "Budget Created",
+                f"You've set a budget of ₹{instance.limit} for the '{instance.category}' category."
+            )
             Badge.objects.get_or_create(
                 user=user,
                 name="Planner",
@@ -71,6 +103,13 @@ def check_budget_badges(sender, instance, created, **kwargs):
             )
             user.profile.points += 30
             user.profile.save()
+        else:
+            # Budget updated
+            send_instant_notification(
+                instance.user,
+                "Budget Updated",
+                f"Your budget for '{instance.category}' has been updated to ₹{instance.limit}."
+            )
     except Exception as e:
         print(f"Error in check_budget_badges: {e}")
 

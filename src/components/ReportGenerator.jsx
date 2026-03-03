@@ -9,45 +9,103 @@ const ReportGenerator = () => {
     const { transactions } = useApp();
 
     const generatePDF = () => {
-        const input = document.getElementById('report-content'); // ID of element to capture
-        if (!input) {
-            // Fallback if no specific element, just make a simple text PDF
+        try {
             const doc = new jsPDF();
-            doc.text("Thrifty Expense Report", 10, 10);
+
+            // Header
+            doc.setFontSize(22);
+            doc.setTextColor(99, 102, 241); // var(--accent-blue)
+            doc.text("Thrifty Financial Report", 14, 22);
+
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+            doc.text(`Total Transactions: ${transactions.length}`, 14, 35);
+
+            // Table Header
+            let y = 50;
+            doc.setFontSize(11);
+            doc.setTextColor(255);
+            doc.setFillColor(30, 41, 59); // Dark blue header
+            doc.rect(14, y - 5, 182, 8, 'F');
+            doc.text("Date", 16, y);
+            doc.text("Category", 45, y);
+            doc.text("Description", 80, y);
+            doc.text("Amount (INR)", 160, y);
+
+            // Data Rows
+            doc.setTextColor(40);
+            y += 10;
+
             transactions.forEach((t, i) => {
-                doc.text(`${t.date.split('T')[0]} - ${t.description}: ${t.amount} (${t.type})`, 10, 20 + (i * 10));
+                if (y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+
+                const dateStr = t.date ? t.date.split('T')[0] : 'N/A';
+                doc.setFontSize(9);
+                doc.text(dateStr, 16, y);
+                doc.text(t.category || 'Other', 45, y);
+                doc.text(t.description?.substring(0, 40) || 'No description', 80, y);
+
+                // Color amount based on type
+                if (t.type === 'income') {
+                    doc.setTextColor(16, 185, 129); // Green
+                } else {
+                    doc.setTextColor(244, 63, 94); // Red
+                }
+                const prefix = t.type === 'income' ? '+' : '-';
+                doc.text(`${prefix}${t.amount}`, 160, y);
+                doc.setTextColor(40); // Reset to default dark
+
+                y += 8;
+                // Subtle line
+                doc.setDrawColor(240);
+                doc.line(14, y - 5, 196, y - 5);
             });
-            doc.save('thrifty-report.pdf');
-            toast.success('Report downloaded!', { theme: "dark" });
-            return;
+
+            doc.save(`thrifty_report_${new Date().toISOString().split('T')[0]}.pdf`);
+            toast.success('PDF Report Generated!', { theme: "dark" });
+        } catch (error) {
+            console.error("PDF generation failed:", error);
+            toast.error("Failed to generate PDF");
         }
-
-        html2canvas(input, { backgroundColor: '#0f172a' }).then((canvas) => {
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF();
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save('thrifty-visual-report.pdf');
-            toast.success('Visual Report downloaded!', { theme: "dark" });
-        });
     };
 
     const downloadCSV = () => {
-        const csvContent = "data:text/csv;charset=utf-8,"
-            + "Date,Type,Category,Description,Amount\n"
-            + transactions.map(t => `${t.date},${t.type},${t.category},${t.description},${t.amount}`).join("\n");
+        try {
+            // Properly format and escape CSV data
+            const headers = ["Date", "Type", "Category", "Description", "Amount (INR)"];
 
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "thrifty_data.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success('CSV Exported!', { theme: "dark" });
+            const rows = transactions.map(t => {
+                const date = t.date ? t.date.split('T')[0] : 'N/A';
+                const type = (t.type || 'expense').toUpperCase();
+                const category = t.category || 'Other';
+                // Escape quotes and commas in description
+                const description = `"${(t.description || '').replace(/"/g, '""')}"`;
+                const amount = t.amount;
+
+                return [date, type, category, description, amount].join(",");
+            });
+
+            const csvContent = "\uFEFF" // Byte Order Mark for Excel UTF-8 support
+                + headers.join(",") + "\n"
+                + rows.join("\n");
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `thrifty_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success('CSV Exported Successfully!', { theme: "dark" });
+        } catch (error) {
+            console.error("CSV export failed:", error);
+            toast.error("Failed to export CSV");
+        }
     };
 
     return (
