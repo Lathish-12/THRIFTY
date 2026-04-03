@@ -275,7 +275,7 @@ const Layout = ({ children }) => {
               onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--text-primary)'}
               onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
             >
-              {user.picture ? (
+              {user?.picture ? (
                 <img src={user.picture} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <User size={18} color="white" />

@@ -32,9 +32,7 @@ const GoalsPage = () => {
 
     const addGoal = async (newGoal) => {
         try {
-            console.log('Adding goal:', newGoal);
             const response = await api.post('/users/goals/', newGoal);
-            console.log('Goal added successfully:', response.data);
             setGoals([...goals, response.data]);
             toast.success('Goal created successfully!');
             setShowAddModal(false);
@@ -161,7 +159,12 @@ const GoalCard = ({ goal, onDelete }) => {
 
             <h3 style={{ margin: '0 0 0.5rem 0' }}>{goal.name}</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                Target: {new Date(goal.deadline).toLocaleDateString()}
+                Target: {(() => {
+                    // Parse date parts directly to avoid UTC-→local timezone shift
+                    const [y, m, d] = (goal.deadline || '').split('-');
+                    if (y && m && d) return `${d}/${m}/${y}`;
+                    return new Date(goal.deadline).toLocaleDateString();
+                })()}
             </p>
 
             <div style={{ marginBottom: '1rem' }}>

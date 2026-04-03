@@ -7,8 +7,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    host: true,
-    allowedHosts: ['.ngrok-free.dev', '.ngrok.io', '.trycloudflare.com'],
+    host: 'localhost',
   },
   build: {
     chunkSizeWarningLimit: 2000,

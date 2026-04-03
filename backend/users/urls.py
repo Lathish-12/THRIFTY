@@ -7,7 +7,7 @@ from rest_framework_simplejwt.views import (
 from .views import (
     RegisterView, MeView, GoogleLoginView, UserProfileView, 
     TransactionViewSet, BadgeViewSet, DeleteAccountView, 
-    AIAdvisorView, BudgetViewSet, GoalViewSet, SupportRequestView,
+    AIAdvisorView, AIStatusView, BudgetViewSet, GoalViewSet, SupportRequestView,
     NotificationViewSet, PasswordResetView
 )
 
@@ -30,6 +30,7 @@ urlpatterns = [
     path('profile/', UserProfileView.as_view(), name='user_profile'),
     path('delete/', DeleteAccountView.as_view(), name='delete_account'),
     path('ai/chat/', AIAdvisorView.as_view(), name='ai_chat'),
+    path('ai/status/', AIStatusView.as_view(), name='ai_status'),
     path('support/', SupportRequestView.as_view(), name='support_request'),
 
     path('', include(router.urls)),  # Include router URLs

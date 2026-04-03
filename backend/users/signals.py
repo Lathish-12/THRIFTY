@@ -1,8 +1,11 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import Transaction, UserProfile, Badge, Goal, Budget
 from django.contrib.auth.models import User
 from .utils import send_instant_notification
+from .ai_service import AIService
+
+from .dynamic_sync import DynamicSyncManager
 
 @receiver(post_save, sender=Transaction)
 def check_transaction_badges(sender, instance, created, **kwargs):
@@ -137,3 +140,11 @@ def check_level_badges(sender, instance, **kwargs):
             )
     except Exception as e:
         print(f"Error in check_level_badges: {e}")
+
+@receiver([post_save, post_delete], sender=Transaction)
+def sync_budget_thresholds(sender, instance, **kwargs):
+    """
+    7.1.2 Dynamic Sync: Delegated to DynamicSyncManager
+    """
+    DynamicSyncManager.sync_budgets(instance)
+

@@ -7,8 +7,10 @@ import { useApp } from '../context/AppContext';
 const MetalsPage = () => {
     const { balance, formatCurrency } = useApp();
     const [metals, setMetals] = useState({ gold: 0, silver: 0 });
+    const [dailyChange, setDailyChange] = useState({ gold: 0, silver: 0 });
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [lastUpdated, setLastUpdated] = useState(null);
     const [timeframe, setTimeframe] = useState('7D');
     const [activeMetal, setActiveMetal] = useState('both'); // 'both', 'gold', 'silver'
 
@@ -16,28 +18,36 @@ const MetalsPage = () => {
         const fetchMetalsData = async () => {
             setLoading(true);
             try {
-                // Fetch Currencies first
-                const currRes = await fetch('https://api.exchangerate-api.com/v4/latest/INR');
+                // Fetch USD → INR exchange rate (USD as base for accuracy)
+                const currRes = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
                 const currData = await currRes.json();
-                const inrPerUsd = 1 / (currData?.rates?.USD || 0.012);
+                const usdToInr = currData?.rates?.INR || 84.0;
 
                 let latestGold, latestSilver;
                 try {
-                    const goldRes = await fetch('https://api.gold-api.com/v1/gold');
-                    const goldData = await goldRes.json();
-                    const indianGoldBase = (goldData.price / 31.1035) * inrPerUsd;
-                    latestGold = indianGoldBase * 2.15;
+                    // Correct endpoints: /price/XAU for Gold, /price/XAG for Silver
+                    // API returns price per troy ounce in USD → convert to INR per gram
+                    const [goldRes, silverRes] = await Promise.all([
+                        fetch('https://api.gold-api.com/price/XAU'),
+                        fetch('https://api.gold-api.com/price/XAG'),
+                    ]);
 
-                    const silverRes = await fetch('https://api.gold-api.com/v1/silver');
+                    if (!goldRes.ok || !silverRes.ok) throw new Error('API error');
+
+                    const goldData = await goldRes.json();
                     const silverData = await silverRes.json();
-                    const indianSilverBase = (silverData.price / 31.1035) * inrPerUsd;
-                    latestSilver = indianSilverBase * 2.65;
+
+                    // Price per troy oz (USD) ÷ 31.1035 g/troy oz × INR rate
+                    latestGold = (goldData.price / 31.1035) * usdToInr;
+                    latestSilver = (silverData.price / 31.1035) * usdToInr;
                 } catch (metalErr) {
-                    latestGold = 15928;
-                    latestSilver = 253.12;
+                    console.warn('Metal price API failed, using fallback:', metalErr);
+                    // Reasonable fallback values (₹/gram) as of March 2026
+                    latestGold = 9500;
+                    latestSilver = 105;
                 }
 
-                setMetals({ gold: latestGold || 15928, silver: latestSilver || 253.12 });
+                setMetals({ gold: latestGold || 9500, silver: latestSilver || 105 });
 
                 // Generate Timeframe-specific History
                 const mockHistory = [];
@@ -81,15 +91,30 @@ const MetalsPage = () => {
                 }
                 setHistory(mockHistory);
 
+                // Calculate daily change from history (first vs last point)
+                if (mockHistory.length >= 2) {
+                    const first = mockHistory[0];
+                    const last = mockHistory[mockHistory.length - 1];
+                    setDailyChange({
+                        gold: last.gold - first.gold,
+                        silver: last.silver - first.silver,
+                    });
+                }
+                setLastUpdated(new Date());
+
             } catch (error) {
                 console.error("Critical error in metals tracking:", error);
-                setMetals({ gold: 15928, silver: 253.12 });
+                setMetals({ gold: 9500, silver: 105 });
             } finally {
                 setLoading(false);
             }
         };
 
         fetchMetalsData();
+
+        // Auto-refresh every 5 minutes
+        const interval = setInterval(fetchMetalsData, 5 * 60 * 1000);
+        return () => clearInterval(interval);
     }, [timeframe]); // Re-run when timeframe changes
 
     if (loading) {
@@ -109,7 +134,15 @@ const MetalsPage = () => {
         >
             <div style={{ marginBottom: '2rem' }}>
                 <h1 className="text-gradient" style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>Indian Metals Market</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Click a card below to isolate its chart performance.</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Click a card below to isolate its chart performance.</p>
+                    {lastUpdated && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: '20px' }}>
+                            <Clock size={12} />
+                            Live · Updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    )}
+                </div>
             </div>
 
             <div className="grid-layout" style={{ gap: '1.5rem' }}>
@@ -139,9 +172,9 @@ const MetalsPage = () => {
                     </div>
                     <div style={{ marginBottom: '1.5rem' }}>
                         <h3 style={{ fontSize: '2.5rem', margin: '0.5rem 0' }}>₹{metals.gold.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h3>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
-                            <TrendingUp size={16} />
-                            <span>+₹125.40 today</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: dailyChange.gold >= 0 ? '#10b981' : '#ef4444' }}>
+                            {dailyChange.gold >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                            <span>{dailyChange.gold >= 0 ? '+' : ''}₹{dailyChange.gold.toFixed(2)} ({timeframe})</span>
                         </div>
                     </div>
                 </motion.div>
@@ -171,9 +204,9 @@ const MetalsPage = () => {
                     </div>
                     <div style={{ marginBottom: '1.5rem' }}>
                         <h3 style={{ fontSize: '2.5rem', margin: '0.5rem 0' }}>₹{metals.silver.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h3>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
-                            <TrendingUp size={16} />
-                            <span>+₹1.15 today</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: dailyChange.silver >= 0 ? '#10b981' : '#ef4444' }}>
+                            {dailyChange.silver >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                            <span>{dailyChange.silver >= 0 ? '+' : ''}₹{dailyChange.silver.toFixed(2)} ({timeframe})</span>
                         </div>
                     </div>
                 </motion.div>

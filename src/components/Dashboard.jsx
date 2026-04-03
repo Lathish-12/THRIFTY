@@ -35,28 +35,50 @@ const Dashboard = ({ transactions }) => {
     useEffect(() => {
         const fetchAllData = async () => {
             try {
-                const currRes = await fetch('https://open.er-api.com/v6/latest/INR');
+                // Fetch USD → INR (consistent with MetalsPage)
+                const currRes = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
                 const currData = await currRes.json();
-                if (currData && currData.rates) setRates(currData.rates);
+                const usdToInr = currData?.rates?.INR || 84.0;
+
+                // Build forex rates (convert from USD base to INR base)
+                if (currData?.rates) {
+                    const inrBase = {
+                        USD: 1 / usdToInr,
+                        EUR: (1 / usdToInr) / (1 / currData.rates.EUR),
+                        GBP: (1 / usdToInr) / (1 / currData.rates.GBP),
+                    };
+                    // Simpler: rates relative to 1 INR
+                    setRates({
+                        USD: 1 / usdToInr,
+                        EUR: (currData.rates.EUR || 0.011) / usdToInr,
+                        GBP: (currData.rates.GBP || 0.0094) / usdToInr,
+                        JPY: (currData.rates.JPY || 1.79) / usdToInr,
+                    });
+                }
 
                 try {
-                    const goldRes = await fetch('https://api.gold-api.com/v1/gold');
+                    // Correct endpoints: /price/XAU for Gold, /price/XAG for Silver
+                    const [goldRes, silverRes] = await Promise.all([
+                        fetch('https://api.gold-api.com/price/XAU'),
+                        fetch('https://api.gold-api.com/price/XAG'),
+                    ]);
                     const goldData = await goldRes.json();
-                    const silverRes = await fetch('https://api.gold-api.com/v1/silver');
                     const silverData = await silverRes.json();
 
-                    const inrPerUsd = 1 / (currData?.rates?.USD || 0.012);
-                    const goldRate = (goldData.price / 31.1035) * inrPerUsd * 2.15;
-                    const silverRate = (silverData.price / 31.1035) * inrPerUsd * 2.65;
-                    setMetals({ gold: goldRate || 15928, silver: silverRate || 253 });
+                    // Price per troy oz (USD) ÷ 31.1035 g/troy oz × INR rate
+                    const goldRate = (goldData.price / 31.1035) * usdToInr;
+                    const silverRate = (silverData.price / 31.1035) * usdToInr;
+                    setMetals({ gold: goldRate || 9500, silver: silverRate || 105 });
                 } catch (metalErr) {
-                    setMetals({ gold: 15928, silver: 253 });
+                    console.warn('Metal price fetch failed:', metalErr);
+                    setMetals({ gold: 9500, silver: 105 });
                 }
 
                 setIsLive(true);
                 setLastUpdate(new Date().toLocaleTimeString());
             } catch (error) {
-                setMetals({ gold: 15928, silver: 253 });
+                console.warn('Dashboard market data fetch failed:', error);
+                setMetals({ gold: 9500, silver: 105 });
             }
         };
 

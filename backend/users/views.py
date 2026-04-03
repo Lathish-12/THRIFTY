@@ -12,6 +12,7 @@ from jwt.exceptions import InvalidTokenError, DecodeError
 import os
 from django.core.mail import send_mail
 from django.conf import settings
+from decouple import config
 
 from .ai_service import AIService
 
@@ -278,103 +279,118 @@ class DeleteAccountView(APIView):
 
 
 class AIAdvisorView(APIView):
-    """Data-Driven Financial Advisor (No External AI)"""
+    """Ollama-powered conversational Financial Advisor with multi-turn history."""
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         try:
-            # Get user message
             user_message = request.data.get('message', '').strip()
             if not user_message:
                 return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Get user's financial data
-            if request.user.is_authenticated:
-                transactions = Transaction.objects.filter(user=request.user).order_by('-date')
-                expenses = transactions.filter(type='expense')
-                income = transactions.filter(type='income')
-                total_expense = sum(float(t.amount) for t in expenses)
-                total_income = sum(float(t.amount) for t in income)
-                transaction_count = transactions.count()
-                
-                # Fetch Goals and Budgets
-                goals = Goal.objects.filter(user=request.user)
-                budgets = Budget.objects.filter(user=request.user)
 
-                # Category breakdown
-                category_summary = {}
-                for t in expenses:
-                    cat = t.category or 'Uncategorized'
-                    category_summary[cat] = category_summary.get(cat, 0) + float(t.amount)
-                
-                top_categories = sorted(category_summary.items(), key=lambda x: x[1], reverse=True)
-                
-                recent_transactions = transactions[:5]
-            else:
-                transactions = Transaction.objects.none()
-                expenses = transactions
-                income = transactions
-                total_expense = 0.0
-                total_income = 0.0
-                transaction_count = 0
-                category_summary = {}
-                top_categories = []
-                recent_transactions = []
-                goals = []
-                budgets = []
+            # Conversation history from frontend [{'role': 'user'/'assistant', 'content': '...'}]
+            history = request.data.get('history', [])
 
-            # Prepare financial context data
+            # ── Gather user financial data ────────────────────────────────
+            transactions = Transaction.objects.filter(user=request.user).order_by('-date')
+            expenses = transactions.filter(type='expense')
+            income_qs = transactions.filter(type='income')
+            total_expense = sum(float(t.amount) for t in expenses)
+            total_income  = sum(float(t.amount) for t in income_qs)
+            transaction_count = transactions.count()
+
+            goals   = Goal.objects.filter(user=request.user)
+            budgets = Budget.objects.filter(user=request.user)
+
+            category_summary = {}
+            for t in expenses:
+                cat = t.category or 'Uncategorized'
+                category_summary[cat] = category_summary.get(cat, 0) + float(t.amount)
+
+            top_categories      = sorted(category_summary.items(), key=lambda x: x[1], reverse=True)
+            recent_transactions = list(transactions[:5])
+
+            goals_list = [
+                {
+                    'name': g.name,
+                    'target': float(g.target_amount),
+                    'current': float(g.current_amount),
+                    'progress_pct': round(float(g.current_amount) / float(g.target_amount) * 100, 1)
+                    if g.target_amount else 0
+                }
+                for g in goals
+            ]
+            budgets_list = [
+                {
+                    'category': b.category,
+                    'limit': float(b.limit),
+                    'spent': category_summary.get(b.category, category_summary.get(b.category.lower(), 0))
+                }
+                for b in budgets
+            ]
+            recent_list = [
+                {
+                    'date': str(t.date), 'description': t.description,
+                    'amount': float(t.amount), 'type': t.type, 'category': t.category
+                }
+                for t in recent_transactions
+            ]
+
             financial_context = {
-                'total_expense': total_expense,
-                'total_income': total_income,
-                'balance': total_income - total_expense,
-                'top_categories': top_categories[:3], # Just top 3 for prompt brevity
-                'user_name': request.user.first_name or request.user.username,
-                'goal_count': goals.count(),
-                'budget_count': budgets.count()
+                'user_name':        request.user.first_name or request.user.username,
+                'total_income':     round(total_income, 2),
+                'total_expense':    round(total_expense, 2),
+                'balance':          round(total_income - total_expense, 2),
+                'transaction_count': transaction_count,
+                'top_categories':   top_categories[:5],
+                'goals':            goals_list,
+                'budgets':          budgets_list,
+                'recent_transactions': recent_list,
             }
 
-            # Try to get AI response from Ollama
-            ai_response = AIService.get_advisor_advice(user_message, financial_context)
-            
-            if ai_response:
-                return Response({
-                    'response': ai_response,
-                    'type': 'text',
-                    'powered_by': f"Ollama ({config('OLLAMA_MODEL', default='deepseek-r1:1.5b')})"
-                })
-
-            # Fallback to local rule-based engine if Ollama fails
-            response_data = self._generate_data_response(
-                user_message, 
-                {
-                    'total_expense': total_expense,
-                    'total_income': total_income,
-                    'balance': total_income - total_expense,
-                    'categories': category_summary,
-                    'top_categories': top_categories,
-                    'count': transaction_count,
-                    'recent': recent_transactions,
-                    'user_name': request.user.first_name or request.user.username,
-                    'goals': goals,
-                    'budgets': budgets
-                }
+            # ── Ask Ollama (with history for multi-turn) ──────────────────
+            ai_response, powered_by = AIService.get_advisor_advice(
+                user_message, financial_context, history=history
             )
 
+            if ai_response:
+                return Response({
+                    'response':   ai_response,
+                    'type':       'text',
+                    'powered_by': powered_by,
+                })
+
+            # ── Local rule-based fallback (Ollama offline) ────────────────
+            response_data = self._generate_data_response(
+                user_message,
+                {
+                    'total_expense':  total_expense,
+                    'total_income':   total_income,
+                    'balance':        total_income - total_expense,
+                    'categories':     category_summary,
+                    'top_categories': top_categories,
+                    'count':          transaction_count,
+                    'recent':         recent_transactions,
+                    'user_name':      request.user.first_name or request.user.username,
+                    'goals':          goals,
+                    'budgets':        budgets,
+                }
+            )
             return Response({
-                'response': response_data,
-                'type': 'text',
-                'powered_by': 'Thrifty Local Engine (Fallback)'
+                'response':   response_data,
+                'type':       'text',
+                'powered_by': 'Thrifty Local Engine',
             })
-            
+
         except Exception as e:
             print(f"Advisor Error: {e}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
     def _generate_data_response(self, query, data):
         """Rule-based response generator using user data"""
         q = query.lower()
-        
+
         # 1. Greetings
         if any(w in q for w in ['hello', 'hi', 'hey', 'start']):
             return f"Hello {data['user_name']}! 👋 I am your Thrifty Advisor. I can help you analyze your finances based on your data.\n\nTry asking:\n- \"What is my balance?\"\n- \"Show my goals\"\n- \"How is my budget?\"\n- \"Highest spending category?\""
@@ -400,10 +416,9 @@ class AIAdvisorView(APIView):
             return msg
 
         # 5. Category Breakdown
-        if 'category' in q or 'breakdown' in q or 'where' in q: # "Where did my money go?"
+        if 'category' in q or 'breakdown' in q or 'where' in q:
             if not data['top_categories']:
                 return "No category data available yet. Add some expenses!"
-            
             msg = "**Spending by Category:**\n"
             for cat, amount in data['top_categories'][:5]:
                 msg += f"- **{cat}**: ₹{amount:.2f}\n"
@@ -413,7 +428,6 @@ class AIAdvisorView(APIView):
         if 'recent' in q or 'transaction' in q or 'last' in q or 'history' in q:
             if not data['recent']:
                 return "No transactions found."
-            
             msg = "**Last 5 Transactions:**\n"
             for t in data['recent']:
                 sign = '+' if t.type == 'income' else '-'
@@ -425,7 +439,6 @@ class AIAdvisorView(APIView):
             goals = data.get('goals', [])
             if not goals:
                 return "You haven't set any financial goals yet. Head to the **Goals** page to set one!"
-            
             msg = "**Your Financial Goals:**\n\n"
             for g in goals:
                 progress = (g.current_amount / g.target_amount) * 100
@@ -437,13 +450,9 @@ class AIAdvisorView(APIView):
             budgets = data.get('budgets', [])
             if not budgets:
                 return "No budgets set. Setting a budget helps you save more!"
-            
             msg = "**Your Budgets:**\n\n"
             for b in budgets:
-                # Calculating spent amount for that category:
-                # Try exact match or lowercase match
                 spent = data['categories'].get(b.category, data['categories'].get(b.category.lower(), 0))
-                
                 msg += f"- **{b.category}**: Spent ₹{spent:.2f} / ₹{b.limit:.2f}\n"
                 if spent > b.limit:
                     msg += "  ⚠️ **Over Budget!**\n"
@@ -451,7 +460,7 @@ class AIAdvisorView(APIView):
                     msg += "  ✅ On Track\n"
             return msg
 
-        # 9. Investment or Savings Advice (Rule-Based)
+        # 9. Investment or Savings Advice
         if 'invest' in q or 'save' in q or 'suggestion' in q or 'tip' in q:
             balance = data['balance']
             if balance > 5000:
@@ -459,10 +468,22 @@ class AIAdvisorView(APIView):
             elif balance > 0:
                 return f"You have a small surplus of **₹{balance:.2f}**. Focus on tracking every expense and building a small safety net before aggressive investing."
             else:
-                return "Your expenses currently exceed your income. ⚠️ My advice:\n1. distinct 'Needs' vs 'Wants'.\n2. Cut down on the top spending category.\n3. Avoid new debts."
+                return "Your expenses currently exceed your income. ⚠️ My advice:\n1. Distinguish 'Needs' vs 'Wants'.\n2. Cut down on the top spending category.\n3. Avoid new debts."
 
         # Default fallback
         return "I can answer questions about your **balance**, **expenses**, **goals**, **budgets**, or **recent transactions**. Try asking: 'Show my goals' or 'How is my budget?'"
+
+
+class AIStatusView(APIView):
+    """Returns the availability status of connected AI engines."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            ai_status = AIService.get_status()
+            return Response(ai_status)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SupportRequestView(APIView):

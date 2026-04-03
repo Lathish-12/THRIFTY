@@ -57,8 +57,21 @@ If you want a more stable URL for your current code without using Localtunnel:
     - If you see a **404** or **Tunnel** page on the frontend, proceed.
     - If API calls fail, open the **Backend Tunnel URL** directly in your browser once and click "Click to Continue" to whitelist your IP.
 
-## Step 7: The "Easiest" Tunnel (No Password Needed)
-If `localtunnel` asks for a password or is slow, use **Bore**:
+## Step 7: Using Ngrok (More Stable Alternative)
+`ngrok` is a very popular and stable tunneling tool. It requires a free account.
+
+1.  **Signup/Auth**: Create a free account at [ngrok.com](https://ngrok.com) and get your `authtoken`.
+2.  **Add Token**: Run this in your terminal to save your token:
+    ```bash
+    npx ngrok config add-authtoken YOUR_TOKEN_HERE
+    ```
+3.  **Start Tunnel**:
+    - **Backend**: `npm run ngrok:backend`
+    - **Frontend**: `npm run ngrok:frontend`
+4.  Copy the URL (e.g., `https://1a2b-3c4d.ngrok-free.app`).
+
+## Step 8: The "Easiest" Tunnel (No Password Needed)
+If `localtunnel` or `ngrok` is too slow or complex, use **Bore**:
 
 1.  Open a **new** terminal.
 2.  Expose any port (Backend: 8000, Frontend: 5173, Firebase: 5000):
@@ -69,7 +82,7 @@ If `localtunnel` asks for a password or is slow, use **Bore**:
     - **Note:** It starts with `http://`.
     - **No password required.**
 
-## Step 8: Getting the Tunnel Password
+## Step 9: Getting the Tunnel Password
 When you visit the localtunnel URL for the first time, you may be asked for a **Tunnel Password**. This password is your public IP address.
 
 To get it easily, run this command in a new terminal:

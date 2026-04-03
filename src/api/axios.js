@@ -5,9 +5,6 @@ const baseURL = rawBaseURL.endsWith('/') ? rawBaseURL.slice(0, -1) : rawBaseURL;
 
 const api = axios.create({
     baseURL,
-    headers: {
-        'Bypass-Tunnel-Reminder': 'true',
-    },
 });
 
 api.interceptors.request.use(

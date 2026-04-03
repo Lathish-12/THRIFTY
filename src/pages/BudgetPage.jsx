@@ -33,16 +33,12 @@ const BudgetPage = () => {
 
     const addBudget = async (newBudget) => {
         try {
-            console.log('Adding budget:', newBudget);
             const response = await api.post('/users/budgets/', newBudget);
-            console.log('Budget added successfully:', response.data);
             setBudgets([...budgets, response.data]);
             toast.success('Budget added successfully!');
             setShowAddModal(false);
         } catch (error) {
             console.error('Error adding budget:', error);
-            console.error('Error response:', error.response);
-            console.error('Error data:', error.response?.data);
             if (error.response?.data?.category) {
                 toast.error('Budget for this category already exists');
             } else if (error.response?.data?.detail) {
@@ -173,8 +169,19 @@ const SummaryCard = ({ title, amount, icon }) => (
 );
 
 const BudgetRow = ({ budget, onDelete }) => {
-    const percentage = Math.min((budget.spent / budget.limit) * 100, 100);
+    const percentage = (budget.spent / budget.limit) * 100;
+    const displayPercentage = Math.min(percentage, 100);
+
+    // 7.4 Color Coding logic
+    let statusColor = '#2dd4bf'; // Safe (Neon Teal)
+    if (percentage > 90) {
+        statusColor = '#ef4444'; // Critical (Panic Red)
+    } else if (percentage > 60) {
+        statusColor = '#fde047'; // Warning (Yellow)
+    }
+
     const isCrisis = percentage > 90;
+    const isWarning = percentage > 60 && percentage <= 90;
 
     return (
         <div>
@@ -186,7 +193,11 @@ const BudgetRow = ({ budget, onDelete }) => {
                     </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{ fontWeight: '600', color: isCrisis ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+                    <span style={{
+                        fontWeight: '600',
+                        color: statusColor,
+                        textShadow: isCrisis ? '0 0 10px rgba(239, 68, 68, 0.3)' : 'none'
+                    }}>
                         {percentage.toFixed(0)}%
                     </span>
                     <button
@@ -207,15 +218,24 @@ const BudgetRow = ({ budget, onDelete }) => {
                     </button>
                 </div>
             </div>
-            <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '5px', overflow: 'hidden' }}>
+            <div style={{
+                width: '100%',
+                height: '12px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.1)',
+                position: 'relative'
+            }}>
                 <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${percentage}%` }}
+                    animate={{ width: `${displayPercentage}%` }}
                     transition={{ duration: 1, ease: 'easeOut' }}
                     style={{
                         height: '100%',
-                        background: budget.color,
-                        borderRadius: '5px'
+                        background: `linear-gradient(90deg, ${statusColor}, ${statusColor}dd)`,
+                        borderRadius: '6px',
+                        boxShadow: `0 0 15px ${statusColor}44`
                     }}
                 />
             </div>

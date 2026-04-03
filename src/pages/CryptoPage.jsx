@@ -4,6 +4,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Bitcoin, TrendingUp, Wallet, ArrowRight, Activity, Search, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
+const COINS = ['bitcoin', 'ethereum', 'solana', 'binancecoin', 'ripple', 'cardano', 'polkadot', 'chainlink'];
+
 const CryptoPage = () => {
     const { balance, formatCurrency } = useApp();
     const [cryptoData, setCryptoData] = useState([]);
@@ -12,8 +14,6 @@ const CryptoPage = () => {
     const [timeframe, setTimeframe] = useState('24H');
     const [selectedCoin, setSelectedCoin] = useState(null);
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
-
-    const COINS = ['bitcoin', 'ethereum', 'solana', 'binancecoin', 'ripple', 'cardano', 'polkadot', 'chainlink'];
 
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -297,11 +297,21 @@ const CryptoPage = () => {
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                                         <span style={{ color: 'var(--text-secondary)' }}>Vol % (24h)</span>
-                                        <span style={{ fontWeight: '600', color: '#10b981' }}>+4.2% Growth</span>
+                                        <span style={{ fontWeight: '600', color: selectedCoin?.price_change_percentage_24h >= 0 ? '#10b981' : '#ef4444' }}>
+                                            {selectedCoin?.price_change_percentage_24h >= 0 ? '+' : ''}{selectedCoin?.price_change_percentage_24h?.toFixed(2)}% Move
+                                        </span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                                         <span style={{ color: 'var(--text-secondary)' }}>Sentiment</span>
-                                        <span style={{ fontWeight: '600', color: '#6366f1' }}>STRONG BUY</span>
+                                        <span style={{ fontWeight: '600', color:
+                                            selectedCoin?.price_change_percentage_24h > 3 ? '#10b981' :
+                                            selectedCoin?.price_change_percentage_24h > 0 ? '#6366f1' :
+                                            selectedCoin?.price_change_percentage_24h > -3 ? '#f59e0b' : '#ef4444'
+                                        }}>
+                                            {selectedCoin?.price_change_percentage_24h > 3 ? 'STRONG BUY' :
+                                             selectedCoin?.price_change_percentage_24h > 0 ? 'BULLISH' :
+                                             selectedCoin?.price_change_percentage_24h > -3 ? 'CAUTIOUS' : 'BEARISH'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

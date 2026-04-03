@@ -9,13 +9,21 @@ export const AppProvider = ({ children }) => {
     // Auth State
     const [user, setUser] = useState({ name: '', email: null, isAuthenticated: false, settings: { currency: 'INR' } });
     const [currency, setCurrency] = useState('INR'); // Global currency state
-    const EXCHANGE_RATE = 83; // 1 USD = 83 INR
+    const [usdToInr, setUsdToInr] = useState(84); // Live exchange rate
     const [authLoading, setAuthLoading] = useState(true);
+
+    // Fetch live USD→INR rate on mount
+    useEffect(() => {
+        fetch('https://api.exchangerate-api.com/v4/latest/USD')
+            .then(r => r.json())
+            .then(d => { if (d?.rates?.INR) setUsdToInr(d.rates.INR); })
+            .catch(() => {}); // silently use default
+    }, []);
 
     // Helper: Format Currency (Global)
     const formatCurrency = (amount) => {
         if (currency === 'USD') {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / EXCHANGE_RATE);
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / usdToInr);
         }
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
     };
@@ -68,11 +76,9 @@ export const AppProvider = ({ children }) => {
 
     // Check Auth on Mount
     useEffect(() => {
-        console.log('Starting auth check...');
         const checkAuth = async () => {
             try {
                 const token = localStorage.getItem('access_token');
-                console.log('Token exists:', !!token);
 
                 if (token) {
                     try {
@@ -92,7 +98,6 @@ export const AppProvider = ({ children }) => {
                     }
                 } else {
                     // No token, user is not authenticated
-                    console.log('No token found, user not authenticated');
                     setUser({ name: '', email: null, isAuthenticated: false, settings: { currency: 'INR' } });
                 }
             } catch (error) {
@@ -100,7 +105,6 @@ export const AppProvider = ({ children }) => {
                 // Set default state on error
                 setUser({ name: '', email: null, isAuthenticated: false, settings: { currency: 'INR' } });
             } finally {
-                console.log('Auth check complete, setting authLoading to false');
                 setAuthLoading(false);
             }
         };
@@ -176,26 +180,17 @@ export const AppProvider = ({ children }) => {
 
     const googleLogin = async (credential) => {
         try {
-            console.log("Attempting Google Login with backend...");
-            console.log("Credential type:", typeof credential);
-            console.log("Credential length:", credential?.length);
-
             const response = await api.post('/users/google/', { token: credential });
-            console.log("Google Login Response:", response.data);
 
             if (!response?.data) {
-                console.error("Empty response from backend");
                 throw new Error("Invalid response from server");
             }
 
             const { access, refresh, user: userData } = response.data;
 
             if (!access || !userData) {
-                console.error("Missing access token or user data:", response.data);
                 throw new Error("Invalid response structure - missing access token or user data");
             }
-
-            console.log("Google Login successful, user data:", userData);
 
             localStorage.setItem('access_token', access);
             if (refresh) {
@@ -209,18 +204,12 @@ export const AppProvider = ({ children }) => {
                 isAuthenticated: true
             }));
 
-            // Fetch user data after Google login
             await fetchUserData();
 
             toast.success(`Welcome ${userData.first_name || 'back'}!`);
             return true;
         } catch (error) {
-            console.error("Google Login Error:", {
-                status: error.response?.status,
-                data: error.response?.data,
-                message: error.message
-            });
-
+            console.error("Google Login Error:", error.response?.status, error.message);
             const errorMsg = error.response?.data?.error || error.message || "Google Login Failed";
             toast.error(errorMsg);
             return false;

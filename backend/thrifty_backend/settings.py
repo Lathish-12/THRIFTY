@@ -32,7 +32,6 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv(
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'https://*.loca.lt',
 ]
 
 
@@ -90,7 +89,7 @@ import dj_database_url
 
 # Use PostgreSQL in production (via DATABASE_URL), SQLite in development
 DATABASES = {
-    'default': dj_database_url.config(default=config('DATABASE_URL'))
+    'default': dj_database_url.config(default=config('DATABASE_URL', default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"))
 }
 
 
@@ -141,9 +140,7 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:
 CORS_ALLOW_CREDENTIALS = True
 
 from corsheaders.defaults import default_headers
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    'bypass-tunnel-reminder',
-]
+CORS_ALLOW_HEADERS = list(default_headers)
 
 # REST Framework Configuration
 REST_FRAMEWORK = {

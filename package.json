@@ -15,6 +15,8 @@
     "bore:frontend": "npx bore local 5173",
     "bore:backend": "npx bore local 8000",
     "bore:firebase": "npx bore local 5000",
+    "ngrok:frontend": "npx ngrok http 5173",
+    "ngrok:backend": "npx ngrok http 8000",
     "tunnel:password": "cd backend && .venv\\Scripts\\python.exe -c \"import requests; print('Your Tunnel Password is:', requests.get('https://loca.lt/mytunnelpassword').text.strip())\"",
     "deploy:preview": "firebase hosting:channel:deploy preview"
   },
